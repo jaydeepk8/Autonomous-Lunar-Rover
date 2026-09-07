@@ -8,22 +8,25 @@ OBLIQUITY_DEG = 1.54
 SYNODIC_HOURS = 29.53 * 24
 
 
-def sun_position(hours, lat_deg=SITE_LAT_DEG, obliquity_deg=OBLIQUITY_DEG):
+def sun_position(hours, lat_deg=SITE_LAT_DEG, subsolar_lat_deg=-1.54):
     """
-    Analytic sun position at a lunar polar site.
-    Returns (elevation_deg, azimuth_deg).
+    Sun position at a lunar polar site over one synodic month.
 
-    Approximation: sub-solar latitude oscillates with the obliquity over
-    one synodic month; azimuth sweeps a full 360 degrees in the same period.
+    subsolar_lat_deg is the SEASONAL term: it varies on annual and
+    18.6-year timescales, not within a month. Negative values put the
+    south pole in polar day. Hold it fixed for a one-month stack.
     """
     lat = np.radians(lat_deg)
-    phase = 2 * np.pi * hours / SYNODIC_HOURS
+    dec = np.radians(subsolar_lat_deg)
+    H = 2 * np.pi * hours / SYNODIC_HOURS          # hour angle
 
-    subsolar_lat = np.radians(obliquity_deg) * np.sin(phase)
+    sin_h = np.sin(lat) * np.sin(dec) + np.cos(lat) * np.cos(dec) * np.cos(H)
+    elevation = np.degrees(np.arcsin(sin_h))
 
-    elevation = np.degrees(subsolar_lat - lat) - 90.0
-    
-    azimuth = np.degrees(phase) % 360.0
+    azimuth = np.degrees(np.arctan2(
+        -np.sin(H) * np.cos(dec),
+        np.cos(lat) * np.sin(dec) - np.sin(lat) * np.cos(dec) * np.cos(H)
+    )) % 360.0
 
     return elevation, azimuth
 
