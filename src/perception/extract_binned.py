@@ -15,12 +15,19 @@ TERRAINS = {
 
 FX, CX, CY = 1991.49, 966.256, 600.347
 BASELINE_MM = 301.556
-SIZE = (1936, 1216)
+W, H = 1936, 1216
+SIZE = (W, H)
 BLACK = 16
 Z_MIN, Z_MAX = 1500.0, 7000.0
 
-BIN_EDGES = np.arange(2000.0, 6001.0, 500.0)   # 8 bins of 500 mm
-MIN_GT_PIXELS = 5000                            # bin must be big enough to trust
+# central-region mask, per the dataset readme: the sandbox lip casts an
+# unrealistic shadow at the frame edge. Bottom rows are also the grazing-
+# incidence near field, which is what confounded range with image position.
+MASK_TOP, MASK_BOTTOM = 0.10, 0.30      # drop top 10%, bottom 30% of rows
+MASK_SIDE = 0.10                        # drop 10% from each side
+
+BIN_EDGES = np.arange(2000.0, 6001.0, 500.0)
+MIN_GT_PIXELS = 5000
 
 SUN_XY = {
     "Sun_30": (1.422, -3.594),
@@ -50,6 +57,14 @@ sgbm = cv2.StereoSGBM_create(
     P1=200, P2=800, uniquenessRatio=10,
     speckleWindowSize=100, speckleRange=2, disp12MaxDiff=1)
 
+# build the mask once
+ROI = np.zeros((H, W), bool)
+ROI[int(H * MASK_TOP):int(H * (1 - MASK_BOTTOM)),
+    int(W * MASK_SIDE):int(W * (1 - MASK_SIDE))] = True
+print(f"ROI keeps {ROI.mean():.1%} of the frame "
+      f"(rows {int(H*MASK_TOP)}-{int(H*(1-MASK_BOTTOM))}, "
+      f"cols {int(W*MASK_SIDE)}-{int(W*(1-MASK_SIDE))})")
+
 
 def phase_angle(pos_key, cond):
     sun = SUN_XY.get(cond)
@@ -63,7 +78,7 @@ def phase_angle(pos_key, cond):
 
 
 def to8(a):
-    lo, hi = np.percentile(a, [1, 99])
+    lo, hi = np.percentile(a[ROI], [1, 99])
     if hi - lo < 1e-6:
         return None
     return np.clip((a - lo) / (hi - lo) * 255, 0, 255).astype(np.uint8)
@@ -93,10 +108,14 @@ for terrain_dir, gt_terrain in TERRAINS.items():
             continue
         with rasterio.open(gt_path) as src:
             gtZ = src.read(3)
-        gtok = np.isfinite(gtZ) & (gtZ > Z_MIN) & (gtZ < Z_MAX)
 
+        gtok = np.isfinite(gtZ) & (gtZ > Z_MIN) & (gtZ < Z_MAX) & ROI
         binidx = np.digitize(gtZ, BIN_EDGES) - 1
         nbins = len(BIN_EDGES) - 1
+
+        # row centroid per bin: lets us verify range and image position
+        # are no longer locked together
+        rr = np.arange(H)[:, None] * np.ones((1, W))
 
         for cond in sorted(os.listdir(os.path.join(root, pos))):
             cdir = os.path.join(root, pos, cond)
@@ -129,9 +148,9 @@ for terrain_dir, gt_terrain in TERRAINS.items():
                     cam_dist_mm=cam_dist_mm, lights=lights,
                     lighting=cond, exposure_ms=exp,
                     phase_deg=phase_angle(pos_key, cond),
-                    frame_mean_dn=round(float(la.mean()), 2),
-                    frame_frac_dark=round(float((la <= 40).mean()), 4),
-                    frame_frac_sat=round(float((la >= 4000).mean()), 4),
+                    frame_mean_dn=round(float(la[ROI].mean()), 2),
+                    frame_frac_dark=round(float((la[ROI] <= 40).mean()), 4),
+                    frame_frac_sat=round(float((la[ROI] >= 4000).mean()), 4),
                 )
 
                 for b in range(nbins):
@@ -148,6 +167,7 @@ for terrain_dir, gt_terrain in TERRAINS.items():
                         range_m=round((BIN_EDGES[b] + BIN_EDGES[b + 1]) / 2000.0, 3),
                         n_gt=n_gt, n_valid=int(v.sum()),
                         coverage=round(cov, 4),
+                        row_centroid=round(float(rr[inbin].mean()), 1),
                         bin_mean_dn=round(float(la[inbin].mean()), 2),
                     )
 
