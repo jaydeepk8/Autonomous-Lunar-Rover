@@ -11,7 +11,6 @@ HIGH_MIN = 170.0   # lowest phase angle observed in the high band
 d = pd.read_csv(CSV)
 d["usable"] = 1 - d.frame_frac_dark - d.frame_frac_sat
 
-# one frame per condition per depth bin: emulate rover auto-exposure
 idx = d.groupby(["terrain", "position", "lighting", "depth_bin_mm"])["usable"].idxmax()
 a = d.loc[idx].copy()
 
@@ -39,7 +38,6 @@ def band_report(name, g):
     }
 
 
-# is the low band flat, per terrain?
 print("\nLOW BAND flatness (linear trend within band):")
 slopes = {}
 for t, g in low.groupby("terrain"):
