@@ -1,7 +1,8 @@
 import json
 import os
 
-# tag: spec = published and cited, assumed = swept over the stated range
+from loads import p as load_p, idle_load
+
 PARAMS = {
     "lambda0_2023": dict(
         value=1.0 / 1000.0, unit="faults/m", tag="spec",
@@ -15,18 +16,6 @@ PARAMS = {
     "T_rec_2024": dict(
         value=10.0 * 3600.0, unit="s", tag="spec",
         source="Lamarre 2024: 10 h recovery"),
-    "v_drive": dict(
-        value=0.8 / 3.6, unit="m/s", tag="spec",
-        source="VIPER top speed 0.8 km/h"),
-    "v_slow": dict(
-        value=0.4 / 3.6, unit="m/s", tag="spec",
-        source="VIPER prospecting speed 0.4 km/h"),
-    "P_idle": dict(
-        value=50.0, unit="W", tag="assumed", sweep=(20.0, 200.0),
-        source="ACT/NASA JSC: TMS cuts survival heat from hundreds of W to tens"),
-    "P_light": dict(
-        value=40.0, unit="W", tag="assumed", sweep=(10.0, 120.0),
-        source="no published figure for the VIPER lighting system"),
 }
 
 KAPPA_SWEEP = [0.0, 0.25, 0.5, 1.0, 2.0, 4.0]
@@ -59,7 +48,6 @@ def load_q():
 
 
 def per_terrain_q(m):
-    """Terrains carrying both a headlight and a dark measurement."""
     h = m["headlight"]["per_terrain"]
     d = m["dark"]["per_terrain"]
     return {t: (h[t], d[t]) for t in sorted(set(h) & set(d))}
@@ -81,7 +69,6 @@ def breakeven_headlight_power(q_dark, q_head, kappa, lambda0, T_rec, v, P_idle):
 
 def segment_energy(L, q, kappa, lambda0, T_rec, v, P_base, P_drive,
                    P_light, P_idle):
-    """Expected energy in J to traverse L metres in one perception mode."""
     t = L / v
     return (P_base + P_drive + P_light) * t + \
         fault_rate(q, kappa, lambda0) * L * T_rec * P_idle
@@ -92,10 +79,14 @@ def report_params():
     print("PARAMETERS")
     print("=" * 74)
     for name, d in PARAMS.items():
-        sweep = f"  sweep {d['sweep']}" if "sweep" in d else ""
-        print(f"  {name:14s} {d['value']:>10.5g} {d['unit']:<10s} "
-              f"[{d['tag']}]{sweep}")
+        print(f"  {name:14s} {d['value']:>10.5g} {d['unit']:<10s} [{d['tag']}]")
         print(f"                 {d['source']}")
+    print(f"\n  from loads.py:")
+    print(f"    v_drive   {load_p('v_drive'):8.4f} m/s")
+    print(f"    P_light   {load_p('P_light'):8.1f} W")
+    print(f"    P_idle    {idle_load(shadow=True):8.1f} W  "
+          f"(avionics {load_p('P_avionics'):.0f} + shadow heater "
+          f"{load_p('P_heater_shadow'):.0f})")
     print()
 
 
@@ -110,10 +101,14 @@ def report_modes(q):
 
 
 def report_breakeven(q):
+    P_idle = idle_load(shadow=True)
+    P_light = load_p("P_light")
+    v = load_p("v_drive")
+
     print("=" * 74)
     print("HEADLIGHT BREAK-EVEN POWER")
     print("=" * 74)
-    print(f"  assumed draw {p('P_light'):.0f} W, sweep {PARAMS['P_light']['sweep']}\n")
+    print(f"  assumed draw {P_light:.0f} W, idle during recovery {P_idle:.0f} W\n")
 
     for label, lam_key, trec_key in [
         ("Lamarre 2023  (1/1000 m, 5 h)", "lambda0_2023", "T_rec_2023"),
@@ -124,10 +119,10 @@ def report_breakeven(q):
         for kappa in KAPPA_SWEEP:
             P_be = breakeven_headlight_power(
                 q["dark"], q["headlight"], kappa,
-                p(lam_key), p(trec_key), p("v_drive"), p("P_idle"))
+                p(lam_key), p(trec_key), v, P_idle)
             if P_be <= 0.0:
                 verdict = "never worth it"
-            elif P_be > p("P_light"):
+            elif P_be > P_light:
                 verdict = "lights ON"
             else:
                 verdict = "lights OFF"
@@ -142,23 +137,19 @@ def report_idle_sensitivity(q):
     print("=" * 74)
     print("SENSITIVITY: break-even vs idle draw  (Lamarre 2023, kappa = 1.0)")
     print("=" * 74)
-    lo, hi = PARAMS["P_idle"]["sweep"]
     print(f"    {'P_idle (W)':>11s} {'P_be (W)':>11s}")
-    for P_idle in [lo, 50.0, 100.0, 150.0, hi]:
+    for P_idle in [40.0, 70.0, 100.0, 150.0, 250.0]:
         P_be = breakeven_headlight_power(
             q["dark"], q["headlight"], 1.0,
-            p("lambda0_2023"), p("T_rec_2023"), p("v_drive"), P_idle)
+            p("lambda0_2023"), p("T_rec_2023"), load_p("v_drive"), P_idle)
         print(f"    {P_idle:11.0f} {P_be:11.1f}")
     print()
 
 
 def report_per_terrain(m, q):
-    """
-    Phase 1 limitation 5: headlight coverage varies 0.50 to 0.87 by terrain.
-    Pooling q hides that the decision itself flips between terrains.
-    """
+    P_idle = idle_load(shadow=True)
     print("=" * 74)
-    print("PER-TERRAIN BREAK-EVEN  (Lamarre 2023, P_idle = 50 W)")
+    print(f"PER-TERRAIN BREAK-EVEN  (Lamarre 2023, P_idle = {P_idle:.0f} W)")
     print("=" * 74)
 
     pt = per_terrain_q(m)
@@ -174,7 +165,7 @@ def report_per_terrain(m, q):
         for k in kappas:
             P_be = breakeven_headlight_power(
                 qd, qh, k, p("lambda0_2023"), p("T_rec_2023"),
-                p("v_drive"), p("P_idle"))
+                load_p("v_drive"), P_idle)
             print(f" {P_be:9.1f}", end="")
         print()
 
@@ -183,16 +174,11 @@ def report_per_terrain(m, q):
     for k in kappas:
         P_be = breakeven_headlight_power(
             qd, qh, k, p("lambda0_2023"), p("T_rec_2023"),
-            p("v_drive"), p("P_idle"))
+            load_p("v_drive"), P_idle)
         print(f" {P_be:9.1f}", end="")
     print()
 
-    print(f"\n  At the assumed {p('P_light'):.0f} W draw the pooled model and the "
-          f"per-terrain models")
-    print("  disagree at low kappa: pooled says OFF while the two crater "
-          "terrains")
-    print("  say ON. A single global q cannot carry the headlight decision.")
-    print("  Terrain 1 is absent: no NoSun capture in the source dataset.\n")
+    print(f"\n  Terrain 1 is absent: no NoSun capture in the source dataset.\n")
 
 
 if __name__ == "__main__":
