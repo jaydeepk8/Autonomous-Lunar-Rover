@@ -16,6 +16,7 @@ from loads import p as load_p, drive_power
 from coupling import load_q, PARAMS as FAULT
 
 SLOPE_5M = "data/Site04_final_adj_5mpp_slp.tif"
+SLOPE_ERR_5M = "data/Site04_final_adj_5mpp_slperr.tif"
 
 PARAMS = {
     "max_slope": dict(
@@ -60,16 +61,32 @@ def slope_5m(xs, ys):
         src = s.read(1, masked=True).astype(np.float32).filled(np.nan)
         src_tf, src_crs = s.transform, s.crs
 
+    raw = src
+    err = None
+    if os.path.exists(SLOPE_ERR_5M):
+        with rasterio.open(SLOPE_ERR_5M) as e:
+            if e.shape == src.shape and e.transform == src_tf:
+                err = e.read(1, masked=True).astype(np.float32).filled(np.nan)
+    if err is not None:
+        # random DEM error always steepens slopes; remove it in quadrature
+        t2 = np.tan(np.radians(src)) ** 2 - np.tan(np.radians(err)) ** 2
+        src = np.degrees(np.arctan(np.sqrt(np.maximum(t2, 0.0)))).astype(np.float32)
+
     def to_grid(a, how):
         out = np.full((len(ys), len(xs)), np.nan, dtype=np.float32)
         reproject(a, out, src_transform=src_tf, src_crs=src_crs, src_nodata=np.nan,
                   dst_transform=dst_tf, dst_crs=crs, dst_nodata=np.nan, resampling=how)
         return out
 
-    steep = np.where(np.isfinite(src), (src > p("max_slope")).astype(np.float32), np.nan)
-    return dict(share=to_grid(steep, Resampling.average),
+    def steep_share(a):
+        return to_grid(np.where(np.isfinite(a), (a > p("max_slope")).astype(np.float32),
+                                np.nan), Resampling.average)
+
+    return dict(share=steep_share(src),
+                share_raw=steep_share(raw),
                 mean=to_grid(src, Resampling.average),
-                max=to_grid(src, Resampling.max))
+                max=to_grid(src, Resampling.max),
+                err=None if err is None else to_grid(err, Resampling.average))
 
 
 def terrain():
@@ -164,6 +181,14 @@ def report_terrain(terr):
         print(f"  5 m slope map     : NOT FOUND at {SLOPE_5M}; using 40 m grades only")
     else:
         s5 = terr["s5"]
+        if s5["err"] is None:
+            print(f"  5 m slope error   : NOT USED ({SLOPE_ERR_5M} missing or not aligned)")
+        else:
+            print(f"  5 m slope error   : median {np.nanmedian(s5['err']):.1f} deg, "
+                  f"removed from each 5 m slope")
+            print(f"  blocked cells     : {np.nanmean(s5['share_raw'] > p('max_steep_share')):.2%} "
+                  f"before the correction, "
+                  f"{np.nanmean(s5['share'] > p('max_steep_share')):.2%} after")
         print(f"  5 m slope per cell: mean {np.nanmedian(s5['mean']):.1f} deg (median cell), "
               f"steepest {np.nanmedian(s5['max']):.1f} deg (median cell)")
         print(f"\n  share of cells blocked under different rules:")

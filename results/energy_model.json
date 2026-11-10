@@ -239,164 +239,164 @@
     "budget_fraction_of_battery": 0.3,
     "fault_rate": "Lamarre 2023 unless changed",
     "baseline": {
-      "reserve_ratio": 1.235888340069425,
-      "lost_share": 0.11795182142947246,
-      "lost_km2": 4.668,
-      "reachable_km2": 36.6408
+      "reserve_ratio": 1.2360259032194079,
+      "lost_share": 0.11793398014878617,
+      "lost_km2": 4.6728000000000005,
+      "reachable_km2": 36.644000000000005
     },
     "sweep": [
       {
         "changed": "fault rate",
         "to": "Lamarre 2024",
-        "reserve_ratio": 1.22210782532439,
-        "lost_share": 0.10995045696579694,
-        "lost_km2": 5.324,
-        "reachable_km2": 49.2952
+        "reserve_ratio": 1.2222080378231643,
+        "lost_share": 0.1100067855653778,
+        "lost_km2": 5.3264000000000005,
+        "reachable_km2": 49.328
       },
       {
         "changed": "P_heater_shadow",
         "to": 20.0,
-        "reserve_ratio": 1.2469457629424205,
-        "lost_share": 0.12767877857778254,
-        "lost_km2": 5.6528,
-        "reachable_km2": 43.690400000000004
+        "reserve_ratio": 1.2468975892478684,
+        "lost_share": 0.12776055114558543,
+        "lost_km2": 5.6648,
+        "reachable_km2": 43.7128
       },
       {
         "changed": "P_heater_shadow",
         "to": 100.0,
-        "reserve_ratio": 1.2278996854805153,
-        "lost_share": 0.11530376090404867,
-        "lost_km2": 3.4736000000000002,
-        "reachable_km2": 29.822400000000002
+        "reserve_ratio": 1.227900491389491,
+        "lost_share": 0.11524147290419787,
+        "lost_km2": 3.4792,
+        "reachable_km2": 29.834400000000002
       },
       {
         "changed": "P_heater_shadow",
         "to": 200.0,
-        "reserve_ratio": 1.2210139309106995,
-        "lost_share": 0.12414057000986081,
-        "lost_km2": 2.9696000000000002,
-        "reachable_km2": 22.0104
+        "reserve_ratio": 1.2209390873913528,
+        "lost_share": 0.12452686669529428,
+        "lost_km2": 2.9688,
+        "reachable_km2": 22.0192
       },
       {
         "changed": "P_avionics",
         "to": 30.0,
-        "reserve_ratio": 1.2426410924171796,
-        "lost_share": 0.12551508648328882,
-        "lost_km2": 5.5192000000000005,
-        "reachable_km2": 41.2216
+        "reserve_ratio": 1.2427581957389222,
+        "lost_share": 0.12549013212451535,
+        "lost_km2": 5.5288,
+        "reachable_km2": 41.241600000000005
       },
       {
         "changed": "P_avionics",
         "to": 100.0,
-        "reserve_ratio": 1.226668626797839,
-        "lost_share": 0.11537349820249679,
-        "lost_km2": 3.4664,
-        "reachable_km2": 29.727200000000003
+        "reserve_ratio": 1.2266119832389126,
+        "lost_share": 0.11529060806266875,
+        "lost_km2": 3.4720000000000004,
+        "reachable_km2": 29.739200000000004
       },
       {
         "changed": "P_light",
         "to": 10.0,
-        "reserve_ratio": 1.186866436533052,
-        "lost_share": 0.09671813244721629,
-        "lost_km2": 3.8584000000000005,
-        "reachable_km2": 36.6408
+        "reserve_ratio": 1.1869544567580719,
+        "lost_share": 0.09669726405759521,
+        "lost_km2": 3.8624,
+        "reachable_km2": 36.644000000000005
       },
       {
         "changed": "P_light",
         "to": 120.0,
-        "reserve_ratio": 1.3662488206137322,
-        "lost_share": 0.16721545441563632,
-        "lost_km2": 6.526400000000001,
-        "reachable_km2": 36.6408
+        "reserve_ratio": 1.3664008915269221,
+        "lost_share": 0.16715886291504814,
+        "lost_km2": 6.5304,
+        "reachable_km2": 36.644000000000005
       },
       {
         "changed": "mu_roll",
         "to": 0.1,
-        "reserve_ratio": 1.2553991965812359,
-        "lost_share": 0.12487583037872957,
-        "lost_km2": 5.2576,
-        "reachable_km2": 38.2352
+        "reserve_ratio": 1.2553608989582472,
+        "lost_share": 0.12483201709696701,
+        "lost_km2": 5.26,
+        "reachable_km2": 38.2392
       },
       {
         "changed": "mu_roll",
         "to": 0.5,
-        "reserve_ratio": 1.2196342547530588,
-        "lost_share": 0.11075783347646576,
-        "lost_km2": 4.084,
-        "reachable_km2": 35.0368
+        "reserve_ratio": 1.2195844320392286,
+        "lost_share": 0.11079550946599509,
+        "lost_km2": 4.0872,
+        "reachable_km2": 35.0496
       },
       {
         "changed": "max_slope",
         "to": 20.0,
-        "reserve_ratio": 1.2385868681474816,
-        "lost_share": 0.11388675951865077,
-        "lost_km2": 3.7208,
-        "reachable_km2": 32.5488
+        "reserve_ratio": 1.2385631362604759,
+        "lost_share": 0.11448911443081505,
+        "lost_km2": 3.7536000000000005,
+        "reachable_km2": 32.6512
       },
       {
         "changed": "max_slope",
         "to": 30.0,
-        "reserve_ratio": 1.2347337973017178,
-        "lost_share": 0.12704391883805657,
-        "lost_km2": 5.3448,
-        "reachable_km2": 40.28
+        "reserve_ratio": 1.2348095722075834,
+        "lost_share": 0.12704007820058913,
+        "lost_km2": 5.348800000000001,
+        "reachable_km2": 40.2936
       },
       {
         "changed": "max_steep_share",
         "to": 0.25,
-        "reserve_ratio": 1.2369865122204553,
-        "lost_share": 0.11881305239517366,
-        "lost_km2": 4.4592,
-        "reachable_km2": 36.188
+        "reserve_ratio": 1.2369005744319046,
+        "lost_share": 0.11877065264648344,
+        "lost_km2": 4.4656,
+        "reachable_km2": 36.2184
       },
       {
         "changed": "max_steep_share",
         "to": 0.75,
-        "reserve_ratio": 1.2364374758129937,
-        "lost_share": 0.11692923596602023,
-        "lost_km2": 4.7608,
-        "reachable_km2": 37.2304
+        "reserve_ratio": 1.236200380987643,
+        "lost_share": 0.11711954474295722,
+        "lost_km2": 4.788,
+        "reachable_km2": 37.265600000000006
       },
       {
         "changed": "q from terrain",
         "to": "Terrain03_MeanDistr",
-        "reserve_ratio": 1.39107817241142,
-        "lost_share": 0.17657881460638924,
-        "lost_km2": 6.8384,
-        "reachable_km2": 36.6408
+        "reserve_ratio": 1.391267062529312,
+        "lost_share": 0.1765951035501635,
+        "lost_km2": 6.8424000000000005,
+        "reachable_km2": 36.644000000000005
       },
       {
         "changed": "q from terrain",
         "to": "Terrain06_Smooth",
-        "reserve_ratio": 1.2652976272882739,
-        "lost_share": 0.12931942867421753,
-        "lost_km2": 5.0984,
-        "reachable_km2": 36.6408
+        "reserve_ratio": 1.2653833701524477,
+        "lost_share": 0.129292660724166,
+        "lost_km2": 5.1032,
+        "reachable_km2": 36.644000000000005
       },
       {
         "changed": "q from terrain",
         "to": "Terrain11_FreshCrater",
-        "reserve_ratio": 1.1486888291798654,
-        "lost_share": 0.07918665667755231,
-        "lost_km2": 3.1736000000000004,
-        "reachable_km2": 36.6408
+        "reserve_ratio": 1.1486375496894783,
+        "lost_share": 0.07917957012235483,
+        "lost_km2": 3.1776,
+        "reachable_km2": 36.644000000000005
       },
       {
         "changed": "q from terrain",
         "to": "Terrain12_OldCrater",
-        "reserve_ratio": 1.1549139081061768,
-        "lost_share": 0.08237230589996745,
-        "lost_km2": 3.292,
-        "reachable_km2": 36.6408
+        "reserve_ratio": 1.1549109757806428,
+        "lost_share": 0.08236276286688635,
+        "lost_km2": 3.2960000000000003,
+        "reachable_km2": 36.644000000000005
       }
     ],
     "reserve_ratio_range": [
-      1.1486888291798654,
-      1.39107817241142
+      1.1486375496894783,
+      1.391267062529312
     ],
     "lost_share_range": [
-      0.07918665667755231,
-      0.17657881460638924
+      0.07917957012235483,
+      0.1765951035501635
     ]
   },
   "limitations": [
