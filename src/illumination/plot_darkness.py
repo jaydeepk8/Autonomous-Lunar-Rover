@@ -8,18 +8,18 @@ from matplotlib.patches import Patch
 from scipy import ndimage
 
 from sun_geometry import sun_position, SYNODIC_HOURS
-from horizon_field import horizon_at, DISC_RADIUS_DEG
+from horizon_field import load_field, sun_elevation, horizon_at, DISC_RADIUS_DEG, R_MOON
 
-FIELD = "results/horizon_field.npy"
 DT_H = 1.0
 
 
-def lit_stack(H, dt_h=DT_H):
+def lit_stack(H, xs, ys, dt_h=DT_H):
     hours = np.arange(0.0, SYNODIC_HOURS, dt_h)
     lit = np.empty((len(hours),) + H.shape[:2], dtype=bool)
     for i, hr in enumerate(hours):
         elev, azim = sun_position(hr)
-        lit[i] = (elev + DISC_RADIUS_DEG) > horizon_at(H, float(azim))
+        e = sun_elevation(float(elev), float(azim), xs, ys)
+        lit[i] = (e + DISC_RADIUS_DEG) > horizon_at(H, float(azim))
     return lit
 
 
@@ -84,11 +84,12 @@ def plot_sunrises(rises, always):
 
 
 if __name__ == "__main__":
-    H = np.load(FIELD)
-    lit = lit_stack(H)
+    H, xs, ys = load_field()
+    lit = lit_stack(H, xs, ys)
     n = lit.shape[0]
 
-    elev = np.array([sun_position(h)[0] for h in np.arange(0.0, SYNODIC_HOURS, DT_H)])
+    reach = np.degrees(np.hypot.outer(ys, xs).max() / R_MOON)
+    pole_elev = sun_position(0.0)[0]
     run = longest_dark_run(lit)
     days = run * DT_H / 24.0
     rises = sunrises(lit)
@@ -99,8 +100,8 @@ if __name__ == "__main__":
     sizes = sorted((int(s) for s in ndimage.sum(always, patches, range(1, n_patches + 1))),
                    reverse=True)
 
-    print(f"sun elevation               : {elev.min():.2f} to {elev.max():.2f} deg, "
-          f"{(elev < 0).sum()} hours below horizon")
+    print(f"sun elevation               : {pole_elev:.2f} deg at the pole, "
+          f"{pole_elev - reach:.2f} to {pole_elev + reach:.2f} deg across the site")
     print(f"never lit                   : {never.mean():.2%}")
     print(f"median longest dark stretch : {np.median(days[~never]):.2f} days "
           f"(cells that get some sun)")

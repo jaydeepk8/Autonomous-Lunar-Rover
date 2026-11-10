@@ -4,10 +4,8 @@ sys.path.insert(0, "src/illumination")
 import numpy as np
 
 from sun_geometry import sun_position, SYNODIC_HOURS
-from horizon_field import horizon_at, DISC_RADIUS_DEG
-from loads import p as load_p, idle_load, total_load, drive_power
-
-FIELD = "results/horizon_field.npy"
+from horizon_field import load_field, sun_elevation, disc_fraction, horizon_at, DISC_RADIUS_DEG
+from loads import p as load_p, idle_load, total_load
 
 PARAMS = {
     "E_batt": dict(
@@ -57,15 +55,16 @@ def integrate(P_in, P_out, dt_h, soc0_Wh=None):
     return out
 
 
-def solar_series(H, cell, hours):
+def solar_series(H, xs, ys, cell, hours):
     r, c = cell
     P = np.empty(len(hours))
     peak = 450.0
     for i, hr in enumerate(hours):
         elev, azim = sun_position(hr)
+        e = sun_elevation(float(elev), float(azim), xs[c:c + 1], ys[r:r + 1])[0, 0]
         h = horizon_at(H, float(azim))[r, c]
-        f = np.clip((elev + DISC_RADIUS_DEG - h) / (2.0 * DISC_RADIUS_DEG), 0.0, 1.0)
-        P[i] = peak * f * np.cos(np.radians(elev))
+        f = np.clip((e + DISC_RADIUS_DEG - h) / (2.0 * DISC_RADIUS_DEG), 0.0, 1.0)
+        P[i] = peak * f * np.cos(np.radians(e))
     return P
 
 
@@ -140,7 +139,7 @@ def report_psr_excursion():
     print()
 
 
-def report_trace(H):
+def report_trace(H, xs, ys):
     print("=" * 74)
     print("BATTERY TRACE OVER ONE MONTH")
     print("=" * 74)
@@ -155,7 +154,7 @@ def report_trace(H):
     floor = p("E_batt") * (1.0 - p("dod"))
 
     for name, cell in [("best-lit cell", best), ("median cell", med)]:
-        P_in = solar_series(H, cell, hours)
+        P_in = solar_series(H, xs, ys, cell, hours)
         soc = integrate(P_in, P_out, 1.0)
         died = int(np.argmax(soc <= floor)) if (soc <= floor).any() else None
         print(f"  {name} ({int(cell[0])}, {int(cell[1])})")
@@ -168,7 +167,7 @@ def report_trace(H):
     print()
 
 
-def survival_map(H, load_W, dt_h=1.0):
+def survival_map(H, xs, ys, load_W, dt_h=1.0):
     cap = p("E_batt")
     floor = cap * (1.0 - p("dod"))
     eta = p("eta_charge")
@@ -179,9 +178,9 @@ def survival_map(H, load_W, dt_h=1.0):
 
     for hr in np.arange(0.0, SYNODIC_HOURS, dt_h):
         elev, azim = sun_position(hr)
-        h = horizon_at(H, float(azim))
-        f = np.clip((elev + DISC_RADIUS_DEG - h) / (2.0 * DISC_RADIUS_DEG), 0.0, 1.0)
-        net = 450.0 * f * np.cos(np.radians(elev)) - load_W
+        e = sun_elevation(float(elev), float(azim), xs, ys)
+        f = disc_fraction(H, e, float(azim))
+        net = 450.0 * f * np.cos(np.radians(e)) - load_W
         soc = np.where(alive, soc + np.where(net > 0, net * eta, net) * dt_h, soc)
         soc = np.minimum(soc, cap)
         hours_lived += alive * dt_h
@@ -190,7 +189,7 @@ def survival_map(H, load_W, dt_h=1.0):
     return alive, hours_lived
 
 
-def report_survival_map(H):
+def report_survival_map(H, xs, ys):
     print("=" * 74)
     print("WHERE THE ROVER ACTUALLY SURVIVES A MONTH")
     print("=" * 74)
@@ -202,7 +201,7 @@ def report_survival_map(H):
         ("parked, heaters", idle_load(shadow=True)),
         ("driving, no lights", total_load(0.0, True, True, False)),
     ]:
-        alive, lived = survival_map(H, L)
+        alive, lived = survival_map(H, xs, ys, L)
         print(f"  {name:>18s} {(Pm > L).mean():15.4f} {alive.mean():17.4f}")
     print()
     print("  Left column: cells where month-average sunlight exceeds the load.")
@@ -210,7 +209,7 @@ def report_survival_map(H):
     print("  The difference is the cost of the month-long shadow cycle.")
     print()
 
-    alive, lived = survival_map(H, idle_load(shadow=True))
+    alive, lived = survival_map(H, xs, ys, idle_load(shadow=True))
     np.save("results/survival_hours.npy", lived)
     print(f"  saved results/survival_hours.npy  "
           f"(median {np.median(lived) / 24:.1f} days)")
@@ -218,11 +217,11 @@ def report_survival_map(H):
 
 
 if __name__ == "__main__":
-    H = np.load(FIELD)
+    H, xs, ys = load_field()
     print(f"\nhorizon field {H.shape}\n")
     report_params()
     report_survival()
     implied = report_published_check()
     report_psr_excursion()
-    report_trace(H)
-    report_survival_map(H)
+    report_trace(H, xs, ys)
+    report_survival_map(H, xs, ys)

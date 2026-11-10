@@ -1,7 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-SITE_LAT_DEG = -89.9
+# reference point is the pole; each cell's own sun height is added in
+# horizon_field.sun_elevation()
+SITE_LAT_DEG = -90.0
 
 OBLIQUITY_DEG = 1.54
 
@@ -47,7 +49,7 @@ if __name__ == "__main__":
     ax[0].plot(hours / 24, elev)
     ax[0].axhline(0, color="k", lw=0.8, ls="--")
     ax[0].set_xlabel("days")
-    ax[0].set_ylabel("sun elevation (deg)")
+    ax[0].set_ylabel("sun elevation at the pole (deg)")
     ax[0].set_title("Elevation over one synodic month")
 
     ax[1].plot(hours / 24, azim)

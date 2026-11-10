@@ -15,12 +15,15 @@ WIDE = "data/LDEM_80S_40MPP_ADJ.tiff"
 PSR = "data/LPSR_80S_20MPP_ADJ.tiff"
 
 OUT = "results/horizon_field.npy"
+OUT_XY = "results/horizon_xy.npz"
 
+R_MOON = 1737400.0
 MARGIN_M = 30000.0
 MAX_RANGE_M = 30000.0
 N_AZ = 72
 DISC_RADIUS_DEG = 0.26
-SUN_ELEV_MAX = 1.9
+SUN_DEC_MAX = 1.54
+IOU_REFERENCE = 0.9778
 
 
 @njit(parallel=True, cache=True)
@@ -50,13 +53,27 @@ def horizon_field(dem, res, r0, r1, c0, c1, n_az, max_range_m):
                     z = dem[r, c]
                     if not np.isfinite(z):
                         continue
-                    angle = np.degrees(np.arctan2(z - z0, i * res))
+                    d = i * res
+                    # the Moon curves away: distant ground sits d^2 / 2R lower
+                    angle = np.degrees(np.arctan2(z - z0 - d * d / (2.0 * R_MOON), d))
                     if angle > max_angle:
                         max_angle = angle
 
                 out[row - r0, col - c0, k] = max_angle
 
     return out
+
+
+def load_field():
+    xy = np.load(OUT_XY)
+    return np.load(OUT), xy["xs"], xy["ys"]
+
+
+def sun_elevation(elev_deg, azim_deg, xs, ys):
+    # sun sits higher for cells displaced from the pole toward it
+    a = np.radians(azim_deg)
+    return elev_deg + np.degrees(
+        (xs[None, :] * np.sin(a) - ys[:, None] * np.cos(a)) / R_MOON)
 
 
 def horizon_at(H, azim_deg):
@@ -74,8 +91,14 @@ def disc_fraction(H, elev_deg, azim_deg, disc_radius=DISC_RADIUS_DEG):
     return np.clip(f, 0.0, 1.0)
 
 
-def psr_from_field(H, elev_max=SUN_ELEV_MAX):
-    return (elev_max <= H.min(axis=2)).astype(np.uint8)
+def psr_from_field(H, xs, ys, dec_max=SUN_DEC_MAX):
+    n_az = H.shape[2]
+    lit = np.zeros(H.shape[:2], dtype=bool)
+    for k in range(n_az):
+        az = 360.0 * k / n_az
+        e = sun_elevation(dec_max, az, xs, ys) + DISC_RADIUS_DEG
+        lit |= e > H[:, :, k]
+    return (~lit).astype(np.uint8)
 
 
 def load_dem():
@@ -92,11 +115,13 @@ def load_dem():
 
     r0, c0 = rowcol(wt, tb.left, tb.top)
     r1, c1 = rowcol(wt, tb.right, tb.bottom)
-    return dem, res, r0, r1, c0, c1, tb
+    xs = wt.c + (np.arange(c0, c1) + 0.5) * wt.a
+    ys = wt.f + (np.arange(r0, r1) + 0.5) * wt.e
+    return dem, res, r0, r1, c0, c1, tb, xs, ys
 
 
-def validate(H, tb):
-    mine = psr_from_field(H)
+def validate(H, xs, ys, tb):
+    mine = psr_from_field(H, xs, ys)
 
     with rasterio.open(PSR) as p:
         pwin = from_bounds(tb.left, tb.bottom, tb.right, tb.top, p.transform)
@@ -111,16 +136,16 @@ def validate(H, tb):
     print(f"  my PSR fraction   : {m.mean():.4f}")
     print(f"  NASA PSR fraction : {r.mean():.4f}")
     print(f"  IoU               : {iou:.4f}")
-    print(f"  Phase 0 reference : 0.9675")
-    if abs(iou - 0.9675) < 0.01:
-        print("  MATCH -- the field reproduces the validated Phase 0 result")
+    print(f"  check_curvature   : {IOU_REFERENCE:.4f}")
+    if abs(iou - IOU_REFERENCE) < 0.005:
+        print("  MATCH -- the field reproduces the curvature check")
     else:
-        print("  MISMATCH -- do not proceed, the field disagrees with Phase 0")
+        print("  MISMATCH -- do not proceed, the field disagrees with the check")
     return iou
 
 
 if __name__ == "__main__":
-    dem, res, r0, r1, c0, c1, tb = load_dem()
+    dem, res, r0, r1, c0, c1, tb, xs, ys = load_dem()
     H_cells, W_cells = r1 - r0, c1 - c0
     nbytes = H_cells * W_cells * N_AZ * 4
 
@@ -133,18 +158,17 @@ if __name__ == "__main__":
     print(f"computed in {clock.time() - t0:.1f} s\n")
 
     np.save(OUT, H)
-    print(f"saved {OUT}\n")
+    np.savez(OUT_XY, xs=xs, ys=ys)
+    print(f"saved {OUT} and {OUT_XY}\n")
 
     print("VALIDATION against NASA PSR map")
-    validate(H, tb)
+    validate(H, xs, ys, tb)
 
     print("\nILLUMINATION AT ARBITRARY TIME (no recompute)")
     for hr in [0.0, 1.0, 6.0, 100.0, 350.0]:
         elev, azim = sun_position(hr)
-        f = disc_fraction(H, float(elev), float(azim))
-        print(f"  t = {hr:7.2f} h  elev {elev:5.2f}  azim {azim:6.1f}  "
+        e = sun_elevation(float(elev), float(azim), xs, ys)
+        f = disc_fraction(H, e, float(azim))
+        print(f"  t = {hr:7.2f} h  azim {azim:6.1f}  sun {e.min():4.2f}-{e.max():4.2f} deg  "
               f"mean f {f.mean():.4f}  fully lit {(f >= 1.0).mean():.4f}  "
               f"partial {((f > 0) & (f < 1)).mean():.4f}")
-
-    print(f"\nold stack: 72 frames, one every {SYNODIC_HOURS / 72:.2f} h")
-    print("this field: any time, any resolution, by lookup")

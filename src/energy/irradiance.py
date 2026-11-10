@@ -4,9 +4,7 @@ sys.path.insert(0, "src/illumination")
 import numpy as np
 
 from sun_geometry import sun_position, SYNODIC_HOURS
-from horizon_field import horizon_at, DISC_RADIUS_DEG
-
-FIELD = "results/horizon_field.npy"
+from horizon_field import load_field, sun_elevation, disc_fraction, R_MOON
 
 PARAMS = {
     "P_array_peak": dict(
@@ -33,29 +31,30 @@ def cos_incidence(elev_deg, panel="vertical_tracking", tilt_deg=0.0):
     raise ValueError(panel)
 
 
-def solar_power(H, elev_deg, azim_deg, panel="vertical_tracking",
+def solar_power(H, xs, ys, elev_deg, azim_deg, panel="vertical_tracking",
                 tilt_deg=0.0, P_peak=None):
     if P_peak is None:
         P_peak = PARAMS["P_array_peak"]["value"]
-    h = horizon_at(H, azim_deg)
-    f = np.clip((elev_deg + DISC_RADIUS_DEG - h) / (2.0 * DISC_RADIUS_DEG), 0.0, 1.0)
-    return P_peak * f * cos_incidence(elev_deg, panel, tilt_deg)
+    e = sun_elevation(elev_deg, azim_deg, xs, ys)
+    f = disc_fraction(H, e, azim_deg)
+    return P_peak * f * cos_incidence(e, panel, tilt_deg)
 
 
-def month_mean_power(H, n_steps=720, panel="vertical_tracking", tilt_deg=0.0):
+def month_mean_power(H, xs, ys, n_steps=720, panel="vertical_tracking", tilt_deg=0.0):
     acc = np.zeros(H.shape[:2], dtype=np.float64)
     for hr in np.linspace(0.0, SYNODIC_HOURS, n_steps, endpoint=False):
         elev, azim = sun_position(hr)
-        acc += solar_power(H, float(elev), float(azim), panel, tilt_deg)
+        acc += solar_power(H, xs, ys, float(elev), float(azim), panel, tilt_deg)
     return acc / n_steps
 
 
-def report_panel_geometry():
+def report_panel_geometry(e_lo, e_hi):
     print("=" * 74)
     print("PANEL GEOMETRY  (why mounting dominates everything)")
     print("=" * 74)
+    print(f"  sun height across the site: {e_lo:.2f} to {e_hi:.2f} deg\n")
     print(f"  {'sun elev':>9s} {'vertical':>10s} {'horizontal':>11s} {'ratio':>8s}")
-    for e in [1.44, 1.50, 1.64, 5.0, 15.0]:
+    for e in [e_lo, 1.54, e_hi, 5.0, 15.0]:
         v = float(cos_incidence(e, "vertical_tracking"))
         h = float(cos_incidence(e, "horizontal"))
         print(f"  {e:9.2f} {v:10.4f} {h:11.4f} {v / h:8.1f}")
@@ -75,25 +74,25 @@ def report_tilt_sensitivity():
     print()
 
 
-def report_instants(H):
+def report_instants(H, xs, ys):
     print("=" * 74)
     print("SOLAR POWER AT A FEW INSTANTS")
     print("=" * 74)
-    print(f"  {'t (h)':>8s} {'elev':>6s} {'azim':>7s} {'mean W':>9s} "
+    print(f"  {'t (h)':>8s} {'azim':>7s} {'mean W':>9s} "
           f"{'max W':>8s} {'cells > 100 W':>14s}")
     for hr in [0.0, 100.0, 200.0, 350.0, 500.0]:
         elev, azim = sun_position(hr)
-        P = solar_power(H, float(elev), float(azim))
-        print(f"  {hr:8.1f} {elev:6.2f} {azim:7.1f} {P.mean():9.2f} "
+        P = solar_power(H, xs, ys, float(elev), float(azim))
+        print(f"  {hr:8.1f} {azim:7.1f} {P.mean():9.2f} "
               f"{P.max():8.1f} {(P > 100).mean():14.4f}")
     print()
 
 
-def report_month(H):
+def report_month(H, xs, ys):
     print("=" * 74)
     print("MONTH-AVERAGED POWER  (720 samples, one per hour)")
     print("=" * 74)
-    Pm = month_mean_power(H)
+    Pm = month_mean_power(H, xs, ys)
     print(f"  site mean        : {Pm.mean():7.2f} W")
     print(f"  best cell        : {Pm.max():7.2f} W")
     print(f"  cells above 50 W : {(Pm > 50).sum():7d}  ({(Pm > 50).mean():.4f})")
@@ -107,7 +106,7 @@ def report_month(H):
 
 
 if __name__ == "__main__":
-    H = np.load(FIELD)
+    H, xs, ys = load_field()
     print(f"\nhorizon field {H.shape} {H.dtype}\n")
 
     print("=" * 74)
@@ -118,9 +117,10 @@ if __name__ == "__main__":
         print(f"                   {d['source']}")
     print()
 
-    report_panel_geometry()
+    reach = np.degrees(np.hypot.outer(ys, xs).max() / R_MOON)
+    report_panel_geometry(1.54 - reach, 1.54 + reach)
     report_tilt_sensitivity()
-    report_instants(H)
-    Pm = report_month(H)
+    report_instants(H, xs, ys)
+    Pm = report_month(H, xs, ys)
     np.save("results/month_mean_power.npy", Pm)
     print("saved results/month_mean_power.npy")
