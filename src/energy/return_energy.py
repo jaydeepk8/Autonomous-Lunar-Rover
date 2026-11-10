@@ -14,8 +14,9 @@ from irradiance import solar_power
 from loads import p as load_p
 from edges import terrain, edge_costs, to_graph
 from coupling import load_q
+from battery import p as batt_p
 
-E_BATT = 5420.0
+E_BATT = batt_p("E_batt")
 BUDGETS = (0.10, 0.20, 0.30)
 KAPPAS = (0.0, 0.5, 1.0)
 TIMES = np.arange(0.0, SYNODIC_HOURS, 24.0)

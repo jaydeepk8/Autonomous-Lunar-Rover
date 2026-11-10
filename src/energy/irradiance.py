@@ -4,7 +4,7 @@ sys.path.insert(0, "src/illumination")
 import numpy as np
 
 from sun_geometry import sun_position, SYNODIC_HOURS
-from horizon_field import load_field, sun_elevation, disc_fraction, R_MOON
+from horizon_field import load_field, sun_elevation, disc_fraction, R_MOON, SUN_DEC_MAX
 
 PARAMS = {
     "P_array_peak": dict(
@@ -54,7 +54,7 @@ def report_panel_geometry(e_lo, e_hi):
     print("=" * 74)
     print(f"  sun height across the site: {e_lo:.2f} to {e_hi:.2f} deg\n")
     print(f"  {'sun elev':>9s} {'vertical':>10s} {'horizontal':>11s} {'ratio':>8s}")
-    for e in [e_lo, 1.54, e_hi, 5.0, 15.0]:
+    for e in [e_lo, SUN_DEC_MAX, e_hi, 5.0, 15.0]:
         v = float(cos_incidence(e, "vertical_tracking"))
         h = float(cos_incidence(e, "horizontal"))
         print(f"  {e:9.2f} {v:10.4f} {h:11.4f} {v / h:8.1f}")
@@ -63,9 +63,9 @@ def report_panel_geometry(e_lo, e_hi):
 
 def report_tilt_sensitivity():
     print("=" * 74)
-    print("TERRAIN TILT SENSITIVITY  (sun at 1.54 deg)")
+    print(f"TERRAIN TILT SENSITIVITY  (sun at {SUN_DEC_MAX} deg)")
     print("=" * 74)
-    e = 1.54
+    e = SUN_DEC_MAX
     print(f"  {'tilt':>6s} {'vertical':>10s} {'horizontal':>11s}")
     for t in [0.0, 5.0, 10.0, 15.0, 25.0]:
         v = float(cos_incidence(e, "vertical_tracking", t))
@@ -118,7 +118,7 @@ if __name__ == "__main__":
     print()
 
     reach = np.degrees(np.hypot.outer(ys, xs).max() / R_MOON)
-    report_panel_geometry(1.54 - reach, 1.54 + reach)
+    report_panel_geometry(SUN_DEC_MAX - reach, SUN_DEC_MAX + reach)
     report_tilt_sensitivity()
     report_instants(H, xs, ys)
     Pm = report_month(H, xs, ys)

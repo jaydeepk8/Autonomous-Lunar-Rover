@@ -6,6 +6,7 @@ import numpy as np
 from sun_geometry import sun_position, SYNODIC_HOURS
 from horizon_field import load_field, sun_elevation, disc_fraction, horizon_at, DISC_RADIUS_DEG
 from loads import p as load_p, idle_load, total_load
+from irradiance import PARAMS as SUN_PARAMS
 
 PARAMS = {
     "E_batt": dict(
@@ -58,7 +59,7 @@ def integrate(P_in, P_out, dt_h, soc0_Wh=None):
 def solar_series(H, xs, ys, cell, hours):
     r, c = cell
     P = np.empty(len(hours))
-    peak = 450.0
+    peak = SUN_PARAMS["P_array_peak"]["value"]
     for i, hr in enumerate(hours):
         elev, azim = sun_position(hr)
         e = sun_elevation(float(elev), float(azim), xs[c:c + 1], ys[r:r + 1])[0, 0]
@@ -180,7 +181,7 @@ def survival_map(H, xs, ys, load_W, dt_h=1.0):
         elev, azim = sun_position(hr)
         e = sun_elevation(float(elev), float(azim), xs, ys)
         f = disc_fraction(H, e, float(azim))
-        net = 450.0 * f * np.cos(np.radians(e)) - load_W
+        net = SUN_PARAMS["P_array_peak"]["value"] * f * np.cos(np.radians(e)) - load_W
         soc = np.where(alive, soc + np.where(net > 0, net * eta, net) * dt_h, soc)
         soc = np.minimum(soc, cap)
         hours_lived += alive * dt_h
