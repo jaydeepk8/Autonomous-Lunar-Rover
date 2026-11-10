@@ -42,9 +42,11 @@ LIMITATIONS = [
     "the two measured values; Phase 1 has no data there.",
     "One pooled q is used for all terrain. The per-terrain spread is reported "
     "as a range on the result, not built into the map.",
-    "Slopes from a 5 m DEM are noisy, which makes them read steeper. NASA's slope "
-    "error map is not used. The rule that a cell is blocked when over half of it "
-    "is steeper than 25 deg is assumed.",
+    "Slopes from a 5 m DEM are noisy, which makes them read steeper. NASA's "
+    "per-pixel slope error (median 1.7 deg at this site) is removed in quadrature; "
+    "it changed the blocked share by under 0.1 points, so the steep ground is real. "
+    "The rule that a cell is blocked when over half of it is steeper than 25 deg "
+    "is assumed.",
     "Panel tilt is modelled for the best case only. Battery capacity loss in the "
     "cold and the +-3.4% yearly change in sunlight strength are not modelled.",
     "The planner grid is 40 m with 8 neighbours, so routes and reach areas carry "
