@@ -3,5 +3,11 @@ data/
 __pycache__/
 *.tif
 *.tiff
-*.tiff
-results/
+download_refs.py
+
+results/*
+!results/q_model.json
+!results/perception_binned.csv
+!results/perception_labels.csv
+!results/illumination_hours.npy
+!results/illumination_stack.npy

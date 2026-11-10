@@ -1,0 +1,104 @@
+{
+  "target": "stereo coverage: fraction of ground-truth pixels reconstructed",
+  "q": "q = coverage",
+  "d_of_q": "d = 1 - q, clipped to [0, 1]",
+  "terrains": [
+    "Terrain01_LargeOnly",
+    "Terrain03_MeanDistr",
+    "Terrain06_Smooth",
+    "Terrain11_FreshCrater",
+    "Terrain12_OldCrater"
+  ],
+  "sunlit": {
+    "form": "piecewise constant over two observed phase-angle bands",
+    "low_band": {
+      "coverage": 0.9042114093959731,
+      "sd": 0.10181524738699758,
+      "n": 447,
+      "per_terrain": {
+        "Terrain01_LargeOnly": 0.9334,
+        "Terrain03_MeanDistr": 0.8896,
+        "Terrain06_Smooth": 0.9214,
+        "Terrain11_FreshCrater": 0.8832,
+        "Terrain12_OldCrater": 0.902
+      },
+      "phase_deg_max": 105.0,
+      "phases_observed": [
+        10.12,
+        10.98,
+        11.24,
+        23.15,
+        24.01,
+        69.99,
+        91.35,
+        92.21,
+        104.12
+      ],
+      "trend_slope_per_deg": 2.6e-05,
+      "trend_slope_per_terrain": {
+        "Terrain01_LargeOnly": -0.000412,
+        "Terrain03_MeanDistr": 0.000938,
+        "Terrain06_Smooth": -0.000125,
+        "Terrain11_FreshCrater": -0.000273,
+        "Terrain12_OldCrater": -3.4e-05
+      },
+      "note": "no trend with phase angle within this band, on any terrain"
+    },
+    "high_band": {
+      "coverage": 0.6325943181818182,
+      "sd": 0.22325320883405503,
+      "n": 88,
+      "per_terrain": {
+        "Terrain01_LargeOnly": 0.7194,
+        "Terrain03_MeanDistr": 0.7045,
+        "Terrain06_Smooth": 0.6789,
+        "Terrain11_FreshCrater": 0.4872,
+        "Terrain12_OldCrater": 0.5949
+      },
+      "phase_deg_min": 170.0,
+      "phases_observed": [
+        173.93,
+        174.79
+      ]
+    },
+    "unobserved_band_deg": [
+      105.0,
+      170.0
+    ],
+    "unobserved_note": "the dataset contains no lighting geometry between 105 and 174 deg. The shape of the transition is unknown. Interpolate linearly only as an explicit modelling assumption, not as a fitted result."
+  },
+  "headlight": {
+    "coverage": 0.7396444444444443,
+    "sd": 0.2506565725203914,
+    "n": 63,
+    "per_terrain": {
+      "Terrain03_MeanDistr": 0.5018,
+      "Terrain06_Smooth": 0.6944,
+      "Terrain11_FreshCrater": 0.8733,
+      "Terrain12_OldCrater": 0.8637
+    }
+  },
+  "dark": {
+    "coverage": 0.03271071428571428,
+    "sd": 0.040060720633337814,
+    "n": 56,
+    "per_terrain": {
+      "Terrain03_MeanDistr": 0.0963,
+      "Terrain06_Smooth": 0.0215,
+      "Terrain11_FreshCrater": 0.0149,
+      "Terrain12_OldCrater": 0.0295
+    }
+  },
+  "limitations": [
+    "Sunlit model is two measured constants, not a curve. Only 12 distinct sun-camera geometries exist, 10 of them below 105 deg phase.",
+    "The high band rests on two phase angles (173.9, 174.8), both from the Sun_180 lamp, though seen from two camera positions.",
+    "No range term. In-frame depth correlates with image row at -0.954 for a fixed downward-pitched stereo pair, so range and viewing geometry cannot be separated in this dataset.",
+    "Depth accuracy is not modelled; geometry does not predict it out-of-sample.",
+    "Headlight coverage varies strongly by terrain (0.50 to 0.87), much more than sunlit coverage does.",
+    "Terrain 3 PosC has a light leak in the source data: no-sun no-light frames read 99-398 DN against 2-7 DN elsewhere, scaling linearly with exposure. Those frames are excluded at extraction.",
+    "Central-ROI mask applied (top 10%, bottom 30%, 10% each side) per the dataset readme, to exclude the sandbox lip.",
+    "Stereo computed at half resolution for tractability; coverage is a ratio and is insensitive to this, absolute depth error is not.",
+    "Terrain 1 has no NoSun capture at all in the source dataset, so the headlight and dark regimes rest on four terrains, not five. It also has no PosC_1500_Lon capture."
+  ],
+  "provenance": "NASA POLAR stereo dataset, per-depth-bin labels, 5 terrains: rock fields, featureless, and two craters"
+}

@@ -23,10 +23,13 @@ def sun_position(hours, lat_deg=SITE_LAT_DEG, subsolar_lat_deg=-1.54):
     sin_h = np.sin(lat) * np.sin(dec) + np.cos(lat) * np.cos(dec) * np.cos(H)
     elevation = np.degrees(np.arcsin(sin_h))
 
-    azimuth = np.degrees(np.arctan2(
+    compass = np.degrees(np.arctan2(
         -np.sin(H) * np.cos(dec),
         np.cos(lat) * np.sin(dec) - np.sin(lat) * np.cos(dec) * np.cos(H)
-    )) % 360.0
+    ))
+    # map-grid azimuth runs the opposite way round from compass bearing at the
+    # south pole (checked by check_azimuth.py)
+    azimuth = (-compass) % 360.0
 
     return elevation, azimuth
 
@@ -49,7 +52,7 @@ if __name__ == "__main__":
 
     ax[1].plot(hours / 24, azim)
     ax[1].set_xlabel("days")
-    ax[1].set_ylabel("sun azimuth (deg)")
+    ax[1].set_ylabel("sun azimuth, map grid (deg)")
     ax[1].set_title("Azimuth over one synodic month")
 
     plt.tight_layout()

@@ -32,8 +32,9 @@ PARAMS = {
         value=40.0, unit="W", tag="assumed", sweep=(10.0, 120.0),
         source="no published figure for the VIPER lighting system"),
     "P_hibernate": dict(
-        value=20.0, unit="W", tag="assumed", sweep=(10.0, 50.0),
-        source="minimum keep-alive draw"),
+        value=43.0, unit="W", tag="derived",
+        source="back-calculated from VIPER surviving 4.2 days of darkness on "
+               "5420 Wh at 80 % depth of discharge"),
 }
 
 
