@@ -1,0 +1,418 @@
+{
+  "what": "energy model for a VIPER-class rover at PGDA Site04, polar summer",
+  "grid": {
+    "cell_m": 40.0,
+    "shape": [
+      400,
+      400
+    ],
+    "neighbours": 8
+  },
+  "parameters": {
+    "m_rover": {
+      "value": 447.0,
+      "unit": "kg",
+      "tag": "spec",
+      "source": "Bluethmann, NTRS 20240013903: roving mass 447 kg",
+      "file": "src/energy/loads.py"
+    },
+    "g_moon": {
+      "value": 1.62,
+      "unit": "m/s2",
+      "tag": "spec",
+      "source": "lunar surface gravity",
+      "file": "src/energy/loads.py"
+    },
+    "v_drive": {
+      "value": 0.22222222222222224,
+      "unit": "m/s",
+      "tag": "spec",
+      "source": "VIPER top speed 0.8 km/h",
+      "file": "src/energy/loads.py"
+    },
+    "mu_roll": {
+      "value": 0.3,
+      "unit": "-",
+      "tag": "assumed",
+      "sweep": [
+        0.1,
+        0.5
+      ],
+      "source": "rolling resistance on regolith; Chen et al. soil parameters cohesion 170 N/m2, friction 35 deg",
+      "file": "src/energy/loads.py"
+    },
+    "eta_drive": {
+      "value": 0.7,
+      "unit": "-",
+      "tag": "assumed",
+      "sweep": [
+        0.5,
+        0.9
+      ],
+      "source": "motor and gearbox efficiency",
+      "file": "src/energy/loads.py"
+    },
+    "P_heater_shadow": {
+      "value": 50.0,
+      "unit": "W",
+      "tag": "assumed",
+      "sweep": [
+        20.0,
+        200.0
+      ],
+      "source": "ACT/NASA JSC: TMS cuts survival heat from hundreds of W to tens",
+      "file": "src/energy/loads.py"
+    },
+    "P_heater_sun": {
+      "value": 10.0,
+      "unit": "W",
+      "tag": "assumed",
+      "sweep": [
+        0.0,
+        50.0
+      ],
+      "source": "reduced heater demand while sunlit",
+      "file": "src/energy/loads.py"
+    },
+    "P_avionics": {
+      "value": 50.0,
+      "unit": "W",
+      "tag": "assumed",
+      "sweep": [
+        30.0,
+        100.0
+      ],
+      "source": "no published figure; Moog IAU and SEPIA wattage not released",
+      "file": "src/energy/loads.py"
+    },
+    "P_light": {
+      "value": 40.0,
+      "unit": "W",
+      "tag": "assumed",
+      "sweep": [
+        10.0,
+        120.0
+      ],
+      "source": "no published figure for the VIPER lighting system",
+      "file": "src/energy/loads.py"
+    },
+    "P_hibernate": {
+      "value": 43.0,
+      "unit": "W",
+      "tag": "derived",
+      "source": "back-calculated from VIPER surviving 4.2 days of darkness on 5420 Wh at 80 % depth of discharge",
+      "file": "src/energy/loads.py"
+    },
+    "max_slope": {
+      "value": 25.0,
+      "unit": "deg",
+      "tag": "assumed",
+      "sweep": [
+        20.0,
+        30.0
+      ],
+      "source": "VIPER climbs 15 deg with ease and 25 to 30 deg if needed",
+      "file": "src/energy/edges.py"
+    },
+    "max_steep_share": {
+      "value": 0.5,
+      "unit": "-",
+      "tag": "assumed",
+      "sweep": [
+        0.25,
+        0.75
+      ],
+      "source": "the rover can steer round isolated steep 5 m patches inside a 40 m cell, but not through a cell that is mostly steep",
+      "file": "src/energy/edges.py"
+    },
+    "phase_low": {
+      "value": 105.0,
+      "unit": "deg",
+      "tag": "spec",
+      "source": "results/q_model.json: highest phase angle in the low band",
+      "file": "src/energy/edges.py"
+    },
+    "phase_high": {
+      "value": 170.0,
+      "unit": "deg",
+      "tag": "spec",
+      "source": "results/q_model.json: lowest phase angle in the high band",
+      "file": "src/energy/edges.py"
+    },
+    "E_batt": {
+      "value": 5420.0,
+      "unit": "Wh",
+      "tag": "spec",
+      "source": "Bluethmann, NTRS 20240013903: 5420 Wh start of life at 0 C",
+      "file": "src/energy/battery.py"
+    },
+    "dod": {
+      "value": 0.8,
+      "unit": "-",
+      "tag": "assumed",
+      "sweep": [
+        0.6,
+        1.0
+      ],
+      "source": "usable fraction of capacity; no published depth-of-discharge limit",
+      "file": "src/energy/battery.py"
+    },
+    "eta_charge": {
+      "value": 0.95,
+      "unit": "-",
+      "tag": "assumed",
+      "sweep": [
+        0.9,
+        0.98
+      ],
+      "source": "round-trip charge efficiency",
+      "file": "src/energy/battery.py"
+    },
+    "darkness_days": {
+      "value": 4.2,
+      "unit": "days",
+      "tag": "spec",
+      "source": "VIPER survives complete darkness a little over four Earth days",
+      "file": "src/energy/battery.py"
+    },
+    "lambda0_2023": {
+      "value": 0.001,
+      "unit": "faults/m",
+      "tag": "spec",
+      "source": "Lamarre 2023, Acta Astronautica: one fault per 1000 m",
+      "file": "src/energy/coupling.py"
+    },
+    "T_rec_2023": {
+      "value": 18000.0,
+      "unit": "s",
+      "tag": "spec",
+      "source": "Lamarre 2023: 5 h recovery",
+      "file": "src/energy/coupling.py"
+    },
+    "lambda0_2024": {
+      "value": 0.0002,
+      "unit": "faults/m",
+      "tag": "spec",
+      "source": "Lamarre 2024, IEEE Aerospace: one fault per 5000 m",
+      "file": "src/energy/coupling.py"
+    },
+    "T_rec_2024": {
+      "value": 36000.0,
+      "unit": "s",
+      "tag": "spec",
+      "source": "Lamarre 2024: 10 h recovery",
+      "file": "src/energy/coupling.py"
+    },
+    "P_array_peak": {
+      "value": 450.0,
+      "unit": "W",
+      "tag": "spec",
+      "source": "Bluethmann, NTRS 20240013903: 320 W per panel, 450 W on corner",
+      "file": "src/energy/irradiance.py"
+    },
+    "solar_constant": {
+      "value": 1361.0,
+      "unit": "W/m2",
+      "tag": "spec",
+      "source": "solar irradiance at 1 AU; Moon-Sun distance varies it by +-3.4 % over a year, not modelled",
+      "file": "src/energy/irradiance.py"
+    },
+    "panel": {
+      "value": "vertical_tracking",
+      "unit": "-",
+      "tag": "assumed",
+      "source": "VIPER drives in any direction without changing facing, to keep panels pointed at the Sun",
+      "file": "src/energy/irradiance.py"
+    }
+  },
+  "checks": {
+    "psr_iou_vs_nasa": 0.9778,
+    "hibernation_W_derived_from_4_2_day_survival": 43.0,
+    "shadow_hours_on_30pct_battery": 9.6,
+    "shadow_hours_published_viper": 9.0
+  },
+  "sunlight": {
+    "site_mean_power_W": 94.27,
+    "never_lit_fraction": 0.3752
+  },
+  "headline": {
+    "budget_fraction_of_battery": 0.3,
+    "fault_rate": "Lamarre 2023 unless changed",
+    "baseline": {
+      "reserve_ratio": 1.235888340069425,
+      "lost_share": 0.11795182142947246,
+      "lost_km2": 4.668,
+      "reachable_km2": 36.6408
+    },
+    "sweep": [
+      {
+        "changed": "fault rate",
+        "to": "Lamarre 2024",
+        "reserve_ratio": 1.22210782532439,
+        "lost_share": 0.10995045696579694,
+        "lost_km2": 5.324,
+        "reachable_km2": 49.2952
+      },
+      {
+        "changed": "P_heater_shadow",
+        "to": 20.0,
+        "reserve_ratio": 1.2469457629424205,
+        "lost_share": 0.12767877857778254,
+        "lost_km2": 5.6528,
+        "reachable_km2": 43.690400000000004
+      },
+      {
+        "changed": "P_heater_shadow",
+        "to": 100.0,
+        "reserve_ratio": 1.2278996854805153,
+        "lost_share": 0.11530376090404867,
+        "lost_km2": 3.4736000000000002,
+        "reachable_km2": 29.822400000000002
+      },
+      {
+        "changed": "P_heater_shadow",
+        "to": 200.0,
+        "reserve_ratio": 1.2210139309106995,
+        "lost_share": 0.12414057000986081,
+        "lost_km2": 2.9696000000000002,
+        "reachable_km2": 22.0104
+      },
+      {
+        "changed": "P_avionics",
+        "to": 30.0,
+        "reserve_ratio": 1.2426410924171796,
+        "lost_share": 0.12551508648328882,
+        "lost_km2": 5.5192000000000005,
+        "reachable_km2": 41.2216
+      },
+      {
+        "changed": "P_avionics",
+        "to": 100.0,
+        "reserve_ratio": 1.226668626797839,
+        "lost_share": 0.11537349820249679,
+        "lost_km2": 3.4664,
+        "reachable_km2": 29.727200000000003
+      },
+      {
+        "changed": "P_light",
+        "to": 10.0,
+        "reserve_ratio": 1.186866436533052,
+        "lost_share": 0.09671813244721629,
+        "lost_km2": 3.8584000000000005,
+        "reachable_km2": 36.6408
+      },
+      {
+        "changed": "P_light",
+        "to": 120.0,
+        "reserve_ratio": 1.3662488206137322,
+        "lost_share": 0.16721545441563632,
+        "lost_km2": 6.526400000000001,
+        "reachable_km2": 36.6408
+      },
+      {
+        "changed": "mu_roll",
+        "to": 0.1,
+        "reserve_ratio": 1.2553991965812359,
+        "lost_share": 0.12487583037872957,
+        "lost_km2": 5.2576,
+        "reachable_km2": 38.2352
+      },
+      {
+        "changed": "mu_roll",
+        "to": 0.5,
+        "reserve_ratio": 1.2196342547530588,
+        "lost_share": 0.11075783347646576,
+        "lost_km2": 4.084,
+        "reachable_km2": 35.0368
+      },
+      {
+        "changed": "max_slope",
+        "to": 20.0,
+        "reserve_ratio": 1.2385868681474816,
+        "lost_share": 0.11388675951865077,
+        "lost_km2": 3.7208,
+        "reachable_km2": 32.5488
+      },
+      {
+        "changed": "max_slope",
+        "to": 30.0,
+        "reserve_ratio": 1.2347337973017178,
+        "lost_share": 0.12704391883805657,
+        "lost_km2": 5.3448,
+        "reachable_km2": 40.28
+      },
+      {
+        "changed": "max_steep_share",
+        "to": 0.25,
+        "reserve_ratio": 1.2369865122204553,
+        "lost_share": 0.11881305239517366,
+        "lost_km2": 4.4592,
+        "reachable_km2": 36.188
+      },
+      {
+        "changed": "max_steep_share",
+        "to": 0.75,
+        "reserve_ratio": 1.2364374758129937,
+        "lost_share": 0.11692923596602023,
+        "lost_km2": 4.7608,
+        "reachable_km2": 37.2304
+      },
+      {
+        "changed": "q from terrain",
+        "to": "Terrain03_MeanDistr",
+        "reserve_ratio": 1.39107817241142,
+        "lost_share": 0.17657881460638924,
+        "lost_km2": 6.8384,
+        "reachable_km2": 36.6408
+      },
+      {
+        "changed": "q from terrain",
+        "to": "Terrain06_Smooth",
+        "reserve_ratio": 1.2652976272882739,
+        "lost_share": 0.12931942867421753,
+        "lost_km2": 5.0984,
+        "reachable_km2": 36.6408
+      },
+      {
+        "changed": "q from terrain",
+        "to": "Terrain11_FreshCrater",
+        "reserve_ratio": 1.1486888291798654,
+        "lost_share": 0.07918665667755231,
+        "lost_km2": 3.1736000000000004,
+        "reachable_km2": 36.6408
+      },
+      {
+        "changed": "q from terrain",
+        "to": "Terrain12_OldCrater",
+        "reserve_ratio": 1.1549139081061768,
+        "lost_share": 0.08237230589996745,
+        "lost_km2": 3.292,
+        "reachable_km2": 36.6408
+      }
+    ],
+    "reserve_ratio_range": [
+      1.1486888291798654,
+      1.39107817241142
+    ],
+    "lost_share_range": [
+      0.07918665667755231,
+      0.17657881460638924
+    ]
+  },
+  "limitations": [
+    "Polar summer only: the sun model keeps the subsolar latitude at -1.54 deg. In polar winter the site gets no sun.",
+    "Heater and electronics power have no published source. The shadow heater (50 W) is higher than the whole hibernation draw (43 W), so a survival heater and a working heater are not yet separated.",
+    "Hibernation power is calculated from VIPER's 4.2-day darkness survival, so comparing against that figure is not a test. The independent check is the 9.6 h shadow time on 30% of the battery against about 9 h published.",
+    "Headlight power has no published source and is swept.",
+    "Faults are counted by their average energy cost. A real fault is a whole recovery stop, so worst cases are worse than these numbers. Phase 3 Monte Carlo runs are needed for that.",
+    "A return trip uses the sunlight at the moment it starts; the sun moves about 0.5 deg per hour while the rover drives.",
+    "Each move uses the conditions of the cell it starts from. A cell counts as sunlit if any part of the sun's disc is visible.",
+    "Perception between 105 and 170 deg phase angle is a straight line between the two measured values; Phase 1 has no data there.",
+    "One pooled q is used for all terrain. The per-terrain spread is reported as a range on the result, not built into the map.",
+    "Slopes from a 5 m DEM are noisy, which makes them read steeper. NASA's slope error map is not used. The rule that a cell is blocked when over half of it is steeper than 25 deg is assumed.",
+    "Panel tilt is modelled for the best case only. Battery capacity loss in the cold and the +-3.4% yearly change in sunlight strength are not modelled.",
+    "The planner grid is 40 m with 8 neighbours, so routes and reach areas carry grid shape effects.",
+    "Rolling resistance and drive efficiency are assumed and swept."
+  ],
+  "q_provenance": "read from results\\q_model.json"
+}

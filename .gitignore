@@ -9,5 +9,6 @@ results/*
 !results/q_model.json
 !results/perception_binned.csv
 !results/perception_labels.csv
+!results/energy_model.json
 !results/illumination_hours.npy
 !results/illumination_stack.npy
