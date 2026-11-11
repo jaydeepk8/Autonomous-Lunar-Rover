@@ -92,16 +92,19 @@ class Planner:
         v["lit"], v["charge"], v["P_sun"] = lit, charge, P_sun
         return v
 
-    def view(self, hour):
-        hb = self.bucket(hour)
-        if hb in self.views:
-            self.views.move_to_end(hb)
-            return self.views[hb]
-        v = self._build(hb, forward=False)
-        self.views[hb] = v
+    def view_at(self, hour):
+        hour = float(hour)
+        if hour in self.views:
+            self.views.move_to_end(hour)
+            return self.views[hour]
+        v = self._build(hour, forward=False)
+        self.views[hour] = v
         if len(self.views) > self.size:
             self.views.popitem(last=False)
         return v
+
+    def view(self, hour):
+        return self.view_at(self.bucket(hour))
 
     def departure(self, hour):
         hour = float(hour)

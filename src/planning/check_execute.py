@@ -93,17 +93,21 @@ def check_moving_sun(terr, H, q, targets):
         pl = Planner("blind", terr, H, q, 0.0)
         dep = pl.departure(HOUR)
         frozen, moving = World(terr, H, q, frozen=HOUR), World(terr, H, q)
-        d, hrs, over = [], [], 0
+        d, hrs, over, rer, wai = [], [], 0, 0, 0
         for t in targets:
             a = fly(frozen, pl, dep, int(t), 0.0)
             b = fly(moving, pl, dep, int(t), 0.0)
-            d.append((b["ledger"] - a["ledger"]) / a["ledger"])
+            d.append(b["ledger"] - a["ledger"])
             hrs.append(b["hours"])
             over += b["ledger"] > budget_Wh()
+            rer += b["reroutes"] > 0
+            wai += b["waits"] > 0
     d = np.array(d)
-    print(f"  energy change from sun movement: median {np.median(d):+.2%}, "
-          f"range {d.min():+.2%} to {d.max():+.2%}")
+    print(f"  energy change from sun movement: median {np.median(d):+.0f} Wh, "
+          f"range {d.min():+.0f} to {d.max():+.0f} Wh")
     print(f"  sortie length: median {np.median(hrs):.1f} h, longest {max(hrs):.1f} h")
+    print(f"  charging cell lost the sun on arrival, re-routed: {rer} of {len(d)}")
+    print(f"  had to wait for the sun: {wai} of {len(d)}")
     print(f"  pushed over budget by sun movement alone: {over} of {len(d)}\n")
     return True
 
@@ -165,7 +169,7 @@ def check_random_faults(terr, H, q, target):
     print("=" * 74)
     print(f"5. RANDOM FAULTS  (blind planner, example target, {N_RUNS} runs each, moving sun)")
     print("=" * 74)
-    ok_all = True
+    ok_all, strands = True, []
     print(f"  {'rate':>5s} {'kappa':>6s} {'faults':>7s} {'expected':>9s} {'z':>6s}   "
           f"{'within':>7s} {'turned':>7s} {'over':>6s} {'strand':>7s}  {'ms/run':>7s}")
     for rate in RATES:
@@ -188,7 +192,22 @@ def check_random_faults(terr, H, q, target):
                   f"{share['within budget']:7.1%} {share['turned back']:7.1%} "
                   f"{share['over budget']:6.1%} {share['stranded']:7.1%}  {ms:7.1f}  "
                   f"{'PASS' if good else 'FAIL'}")
+            st = [r for r in rs if r["outcome"] == "stranded"]
+            if st:
+                k = min(r["faults"] for r in st)
+                tail = np.mean([r["faults"] >= k for r in rs])
+                reasons = {}
+                for r in st:
+                    reasons[r["reason"]] = reasons.get(r["reason"], 0) + 1
+                strands.append((rate, kappa, len(st), reasons,
+                                sorted(r["faults"] for r in st), k, tail))
     print("\n  faults vs expected: mean count against mean of (rate x distance); |z| < 3 passes")
+    if strands:
+        print("\n  stranded runs:")
+        for rate, kappa, n, reasons, fl, k, tail in strands:
+            print(f"    {rate} kappa {kappa:.1f}: {n} stranded, reasons {reasons}, faults {fl}")
+            print(f"      runs with {k}+ faults: {tail:.1%} of all runs "
+                  f"(stranding is the fault tail if this is close to {n / N_RUNS:.1%})")
     print("  outcome shares are a preview on one target, not the Phase 3 result\n")
     return ok_all
 

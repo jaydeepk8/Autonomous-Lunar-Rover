@@ -39,7 +39,7 @@ def p(name):
 
 class State:
     __slots__ = ("t", "idx", "soc", "soc0", "min_soc", "ledger", "faults",
-                 "hazard", "next_fault", "rng", "trace")
+                 "hazard", "next_fault", "rng", "trace", "reroutes", "waits")
 
 
 class World:
@@ -161,6 +161,7 @@ def fly(world, planner, dep, target, kappa_true, rng=None, forced_out=(),
     st.t, st.idx = float(dep["hour"]), path[0]
     st.soc = st.soc0 = st.min_soc = world.cap
     st.ledger, st.faults, st.hazard = 0.0, 0, 0.0
+    st.reroutes, st.waits = 0, 0
     st.rng = rng
     st.next_fault = rng.exponential() if rng is not None else math.inf
     st.trace = [(st.t, st.idx, st.soc, True, False, "depart")] if record else None
@@ -168,6 +169,7 @@ def fly(world, planner, dep, target, kappa_true, rng=None, forced_out=(),
 
     leg, i, reached, turned, reason = "out", 0, False, False, None
     decisions = []
+    home_view = None
     bucket = planner.bucket(world.plan_time(st.t))
 
     def fault(event):
@@ -198,16 +200,23 @@ def fly(world, planner, dep, target, kappa_true, rng=None, forced_out=(),
         else:
             if world.charging(st.idx, st.t):
                 break
-            view = planner.view(world.plan_time(st.t))
+            v = planner.view(world.plan_time(st.t))
+            # never fall back to an older plan than the one already in use
+            if home_view is None or v["hour"] > home_view["hour"]:
+                home_view = v
+            if home_view["home"][st.idx] == 0.0:
+                # planned charging cell has lost the sun: replan now, not at the next refresh
+                step = p("stop_step_h")
+                home_view = planner.view_at(world.plan_time(math.ceil(st.t / step) * step))
+                st.reroutes += 1
+            view = home_view
             nxt = int(view["home_pred"][st.idx])
             if nxt == NO_PRED:
-                if view["home"][st.idx] == 0.0:
-                    # planner thinks this cell charges but the sun has moved on: wait
-                    if not world.stop(st, p("stop_step_h"), "wait"):
-                        reason = "battery floor"
-                    continue
-                reason = "no route home"
-                break
+                # no charging cell reachable right now: wait for the sun
+                st.waits += 1
+                if not world.stop(st, p("stop_step_h"), "wait"):
+                    reason = "battery floor"
+                continue
 
         n = world.move(st, nxt, kappa_true, planner.lights)
         if leg == "out":
@@ -252,5 +261,6 @@ def fly(world, planner, dep, target, kappa_true, rng=None, forced_out=(),
     return dict(outcome=outcome, reason=reason, reached=reached, turned_back=turned,
                 breach=breach, drawdown=drawdown, ledger=st.ledger, faults=st.faults,
                 expected_faults=st.hazard, hours=st.t - t0,
+                reroutes=st.reroutes, waits=st.waits,
                 predicted=float(dep["out"][target] + dep["home"][target]),
                 decisions=decisions, trace=st.trace)
