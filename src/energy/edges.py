@@ -26,6 +26,11 @@ PARAMS = {
         value=0.5, unit="-", tag="assumed", sweep=(0.25, 0.75),
         source="the rover can steer round isolated steep 5 m patches inside a "
                "40 m cell, but not through a cell that is mostly steep"),
+    "v_eff": dict(
+        value=0.8 / 3.6, unit="m/s", tag="assumed", sweep=(0.05, 0.02),
+        source="average speed including stops for imaging, planning and contact; "
+               "VIPER plans at about 1 cm/s speed made good (Ennico-Smith et al. 2023). "
+               "Default equals driving speed, as in Phase 2"),
     "phase_low": dict(
         value=105.0, unit="deg", tag="spec",
         source="results/q_model.json: highest phase angle in the low band"),
@@ -115,9 +120,15 @@ def q_sunlit(phase_deg, q):
     return q["sunlit_low"] * (1.0 - w) + q["sunlit_high"] * w
 
 
+def stop_seconds_per_metre(v):
+    return max(1.0 / p("v_eff") - 1.0 / v, 0.0)
+
+
 def energy_per_metre(P_idle, P_drive, P_light, P_sun, q, kappa, lam0, T_rec, v):
     lam = lam0 * (1.0 + kappa * np.clip(1.0 - q, 0.0, 1.0))
     move = np.maximum(P_idle + P_drive + P_light - P_sun, 0.0) / v / 3600.0
+    # stopped time when average speed is below driving speed: idle load, lights off
+    move = move + np.maximum(P_idle - P_sun, 0.0) * stop_seconds_per_metre(v) / 3600.0
     fault = lam * T_rec * np.maximum(P_idle - P_sun, 0.0) / 3600.0
     return move, fault
 

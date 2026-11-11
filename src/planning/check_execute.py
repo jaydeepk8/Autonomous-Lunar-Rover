@@ -12,7 +12,7 @@ from edges import terrain
 from coupling import load_q, PARAMS as FAULT
 from loads import idle_load
 from planner import Planner, budget_Wh, cell
-from execute import World, fly, PARAMS
+from execute import World, fly, settings, PARAMS
 
 HOUR = 350.0
 RATES = ("2023", "2024")
@@ -20,6 +20,9 @@ N_TARGETS = 50
 N_RUNS = 300
 SEED = 7
 TRACE_OUT = "results/sortie_trace.npz"
+VARIANTS = [("baseline", {}),
+            ("speed 2 cm/s", dict(v_eff=0.02)),
+            ("season -0.5 deg", dict(season=-0.5))]
 
 
 @contextmanager
@@ -64,25 +67,29 @@ def report_params():
 
 def check_plan_equals_reality(terr, H, q):
     print("=" * 74)
-    print(f"1. PLAN = REALITY  (sun frozen, fault rate zero, {N_TARGETS} targets)")
+    print(f"1. PLAN = REALITY  (sun frozen, fault rate zero, up to {N_TARGETS} targets each)")
     print("=" * 74)
-    with no_faults():
-        pl = Planner("blind", terr, H, q, 0.0)
-        dep = pl.departure(HOUR)
-        world = World(terr, H, q, frozen=HOUR)
-        targets = accepted_targets(pl, dep, N_TARGETS)
-        errs, back = [], 0
-        for t in targets:
-            r = fly(world, pl, dep, int(t), 0.0)
-            errs.append(abs(r["ledger"] - r["predicted"]) / r["predicted"])
-            back += r["outcome"] == "within budget" and r["reached"]
-    worst = max(errs) if errs else np.nan
-    good = len(errs) > 0 and worst < 1e-5 and back == len(errs)
-    print(f"  worst gap between simulated energy and planner prediction: {worst:.1e}")
-    print(f"  reached target and returned within budget: {back} of {len(errs)}")
-    print("  (gaps under 1e-5 are float32 rounding in partly lit cells)")
-    print(f"  {'PASS' if good else 'FAIL'}\n")
-    return good, targets
+    ok_all, base_targets = True, None
+    for name, kw in VARIANTS:
+        with no_faults(), settings(**kw):
+            pl = Planner("blind", terr, H, q, 0.0)
+            dep = pl.departure(HOUR)
+            world = World(terr, H, q, frozen=HOUR)
+            targets = accepted_targets(pl, dep, N_TARGETS)
+            errs, back = [], 0
+            for t in targets:
+                r = fly(world, pl, dep, int(t), 0.0)
+                errs.append(abs(r["ledger"] - r["predicted"]) / r["predicted"])
+                back += r["outcome"] == "within budget" and r["reached"]
+        worst = max(errs) if errs else np.nan
+        good = len(errs) > 0 and worst < 1e-5 and back == len(errs)
+        ok_all &= good
+        print(f"  {name:<22s} worst gap {worst:.1e}, returned within budget {back} of {len(errs)}  "
+              f"{'PASS' if good else 'FAIL'}")
+        if base_targets is None:
+            base_targets = targets
+    print("  (gaps under 1e-5 are float32 rounding in partly lit cells)\n")
+    return ok_all, base_targets
 
 
 def check_moving_sun(terr, H, q, targets):

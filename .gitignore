@@ -12,3 +12,4 @@ results/*
 !results/energy_model.json
 !results/illumination_hours.npy
 !results/illumination_stack.npy
+!results/mission_model.json

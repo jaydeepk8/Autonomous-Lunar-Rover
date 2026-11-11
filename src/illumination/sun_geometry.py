@@ -9,15 +9,21 @@ OBLIQUITY_DEG = 1.54
 
 SYNODIC_HOURS = 29.53 * 24
 
+# season: subsolar latitude, held fixed within a month; -1.54 is peak south
+# polar summer. Sweeps change this value instead of passing it around.
+SEASON = {"subsolar_lat_deg": -1.54}
 
-def sun_position(hours, lat_deg=SITE_LAT_DEG, subsolar_lat_deg=-1.54):
+
+def sun_position(hours, lat_deg=SITE_LAT_DEG, subsolar_lat_deg=None):
     """
     Sun position at a lunar polar site over one synodic month.
 
-    subsolar_lat_deg is the SEASONAL term: it varies on annual and
-    18.6-year timescales, not within a month. Negative values put the
-    south pole in polar day. Hold it fixed for a one-month stack.
+    subsolar_lat_deg is the SEASONAL term: it varies over a ~346.6-day
+    lunar seasonal cycle, not within a month. Negative values put the
+    south pole in polar day. Defaults to SEASON["subsolar_lat_deg"].
     """
+    if subsolar_lat_deg is None:
+        subsolar_lat_deg = SEASON["subsolar_lat_deg"]
     lat = np.radians(lat_deg)
     dec = np.radians(subsolar_lat_deg)
     H = 2 * np.pi * hours / SYNODIC_HOURS          # hour angle

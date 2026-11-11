@@ -1,20 +1,22 @@
-# moving between sorties
-
 import sys
 sys.path.insert(0, "src/illumination")
 sys.path.insert(0, "src/energy")
 sys.path.insert(0, "src/planning")
 
 import math
+from contextlib import contextmanager
 import numpy as np
 
+import sun_geometry
+import edges
+import loads
 from sun_geometry import sun_position, SYNODIC_HOURS
 from horizon_field import R_MOON, DISC_RADIUS_DEG
 from irradiance import PARAMS as SUN_PARAMS
 from loads import p as load_p, drive_power
 from battery import p as batt_p
 from coupling import PARAMS as FAULT
-from edges import STEPS, p as edge_p
+from edges import STEPS, p as edge_p, stop_seconds_per_metre
 from planner import budget_Wh, charge_power, outbound_path, NO_PRED
 
 PARAMS = {
@@ -35,6 +37,24 @@ SUN_TABLE_H = 1.0 / 60.0
 
 def p(name):
     return PARAMS[name]["value"]
+
+
+@contextmanager
+def settings(v_eff=None, season=None, p_hibernate=None):
+    """Average speed (m/s), season (subsolar latitude, deg) and hibernation draw (W) for one sweep."""
+    old = (edges.PARAMS["v_eff"]["value"], sun_geometry.SEASON["subsolar_lat_deg"],
+           loads.PARAMS["P_hibernate"]["value"])
+    if v_eff is not None:
+        edges.PARAMS["v_eff"]["value"] = float(v_eff)
+    if season is not None:
+        sun_geometry.SEASON["subsolar_lat_deg"] = float(season)
+    if p_hibernate is not None:
+        loads.PARAMS["P_hibernate"]["value"] = float(p_hibernate)
+    try:
+        yield
+    finally:
+        (edges.PARAMS["v_eff"]["value"], sun_geometry.SEASON["subsolar_lat_deg"],
+         loads.PARAMS["P_hibernate"]["value"]) = old
 
 
 class State:
@@ -58,6 +78,7 @@ class World:
         self.T_rec = FAULT[f"T_rec_{rate}"]["value"] / 3600.0
         self.peak = SUN_PARAMS["P_array_peak"]["value"]
         self.v = load_p("v_drive")
+        self.stop_s = stop_seconds_per_metre(self.v)
         self.cap = batt_p("E_batt")
         self.floor = self.cap * (1.0 - batt_p("dod"))
         self.eta = batt_p("eta_charge")
@@ -122,6 +143,9 @@ class World:
         L = float(self.L[k, r, c])
         load = self.idle(lit) + float(self.P_drive[k, r, c]) + (load_p("P_light") if lights else 0.0)
         self.spend(st, load, P_sun, L / self.v / 3600.0)
+        if self.stop_s > 0.0:
+            # stops along the move (imaging, planning): idle load, lights off
+            self.spend(st, self.idle(lit), P_sun, L * self.stop_s / 3600.0)
         st.idx = b
 
         q = self.q_now(lit, lights, k, az)
@@ -134,13 +158,14 @@ class World:
             st.trace.append((st.t, b, st.soc, lit, lights, ""))
         return n
 
-    def stop(self, st, hours, event=""):
+    def stop(self, st, hours, event="", hibernate=False):
         left = hours
         r, c = divmod(st.idx, self.shape[1])
         while left > 1e-12:
             dt = min(p("stop_step_h"), left)
             lit, P_sun, _ = self.cell_sun(r, c, st.t)
-            self.spend(st, self.idle(lit), P_sun, dt)
+            load = load_p("P_hibernate") if hibernate else self.idle(lit)
+            self.spend(st, load, P_sun, dt)
             left -= dt
             if st.soc <= self.floor:
                 return False
@@ -212,9 +237,9 @@ def fly(world, planner, dep, target, kappa_true, rng=None, forced_out=(),
             view = home_view
             nxt = int(view["home_pred"][st.idx])
             if nxt == NO_PRED:
-                # no charging cell reachable right now: wait for the sun
+                # no charging cell reachable right now: hibernate and wait for the sun
                 st.waits += 1
-                if not world.stop(st, p("stop_step_h"), "wait"):
+                if not world.stop(st, p("stop_step_h"), "wait", hibernate=True):
                     reason = "battery floor"
                 continue
 
