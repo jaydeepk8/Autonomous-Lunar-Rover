@@ -11,7 +11,7 @@ from scipy import sparse
 
 from sun_geometry import sun_position
 from horizon_field import load_dem, load_field, sun_elevation, disc_fraction, WIDE
-from irradiance import solar_power
+from irradiance import solar_power, cos_incidence, PARAMS as SUN_PARAMS
 from loads import p as load_p, drive_power
 from coupling import load_q, PARAMS as FAULT
 
@@ -133,7 +133,8 @@ def energy_per_metre(P_idle, P_drive, P_light, P_sun, q, kappa, lam0, T_rec, v):
     return move, fault
 
 
-def edge_costs(terr, H, hour, kappa, q, rate="2023"):
+def edge_costs(terr, H, hour, kappa, q, rate="2023", P_drive=None, return_sun=False):
+    # P_drive: optional per-step drive power, precomputed by a caller that builds many maps
     xs, ys = terr["xs"], terr["ys"]
     lam0, T_rec = FAULT[f"lambda0_{rate}"]["value"], FAULT[f"T_rec_{rate}"]["value"]
     v = load_p("v_drive")
@@ -141,7 +142,8 @@ def edge_costs(terr, H, hour, kappa, q, rate="2023"):
     elev, azim = sun_position(hour)
     e = sun_elevation(float(elev), float(azim), xs, ys)
     f = disc_fraction(H, e, float(azim))
-    P_sun = solar_power(H, xs, ys, float(elev), float(azim))
+    # same as irradiance.solar_power, reusing e and f
+    P_sun = SUN_PARAMS["P_array_peak"]["value"] * f * cos_incidence(e)
     lit = f > 0.0
     P_idle = load_p("P_avionics") + np.where(lit, load_p("P_heater_sun"),
                                              load_p("P_heater_shadow"))
@@ -149,20 +151,22 @@ def edge_costs(terr, H, hour, kappa, q, rate="2023"):
     costs = np.full((len(STEPS),) + lit.shape, np.inf)
     lights = np.zeros((len(STEPS),) + lit.shape, dtype=bool)
     for k, s in enumerate(terr["steps"]):
-        P_drive = drive_power(s["grade"])
+        P_dr = drive_power(s["grade"]) if P_drive is None else P_drive[k]
         phase = 180.0 - np.abs((s["az"] - float(azim) + 180.0) % 360.0 - 180.0)
-        m, fl = energy_per_metre(P_idle, P_drive, 0.0, P_sun, q_sunlit(phase, q),
+        m, fl = energy_per_metre(P_idle, P_dr, 0.0, P_sun, q_sunlit(phase, q),
                                  kappa, lam0, T_rec, v)
         e_lit = m + fl
-        m, fl = energy_per_metre(P_idle, P_drive, 0.0, 0.0, q["dark"],
+        m, fl = energy_per_metre(P_idle, P_dr, 0.0, 0.0, q["dark"],
                                  kappa, lam0, T_rec, v)
         e_off = m + fl
-        m, fl = energy_per_metre(P_idle, P_drive, load_p("P_light"), 0.0, q["headlight"],
+        m, fl = energy_per_metre(P_idle, P_dr, load_p("P_light"), 0.0, q["headlight"],
                                  kappa, lam0, T_rec, v)
         e_on = m + fl
         per_m = np.where(lit, e_lit, np.minimum(e_on, e_off))
         lights[k] = ~lit & (e_on < e_off) & s["valid"]
         costs[k] = np.where(s["valid"], per_m * s["L"], np.inf)
+    if return_sun:
+        return costs, lights, lit, P_sun
     return costs, lights, lit
 
 

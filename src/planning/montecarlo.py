@@ -6,6 +6,7 @@ sys.path.insert(0, "src/planning")
 import argparse
 import json
 import math
+import multiprocessing as mp
 import os
 import time
 import numpy as np
@@ -111,8 +112,39 @@ def identity_check(terr, H, q, cfg):
     return bool(same)
 
 
-def run_scenario(sc, terr, H, q, cfg, done):
+_W = {}
+
+
+def load_inputs():
+    q, _, provenance = load_q()
+    H, _, _ = load_field()
+    return dict(q=q, H=H, terr=terrain(), provenance=provenance)
+
+
+def init_worker():
+    # on Windows each worker starts fresh and loads the inputs once
+    if not _W:
+        _W.update(load_inputs())
+
+
+def block_values(sc):
+    with settings(v_eff=sc["v_eff"], season=sc["season"], p_hibernate=sc["p_hib"]):
+        return (EDGE_PARAMS["v_eff"]["value"], sun_geometry.SEASON["subsolar_lat_deg"],
+                LOAD_PARAMS["P_hibernate"]["value"])
+
+
+def block_key(sc, hour):
+    speed, season, p_hib = block_values(sc)
+    return f"{sc['name']}|{sc['rate']}|{speed:.4f}|{season:.2f}|{p_hib:.1f}|{hour:.0f}"
+
+
+def run_block(task):
+    """One scenario at one departure moment: pick targets, fly every run for every kappa."""
+    sc, di, hour, n_targets, n_runs = task
+    terr, H, q = _W["terr"], _W["H"], _W["q"]
     passable = terr["passable"].ravel()
+    t0 = time.time()
+    rows, n_tg = [], 0
     with settings(v_eff=sc["v_eff"], season=sc["season"], p_hibernate=sc["p_hib"]):
         speed = EDGE_PARAMS["v_eff"]["value"]
         season = sun_geometry.SEASON["subsolar_lat_deg"]
@@ -121,47 +153,58 @@ def run_scenario(sc, terr, H, q, cfg, done):
         blind = Planner("blind", terr, H, q, 0.0, sc["rate"])
         aware = {k: Planner("aware", terr, H, q, k, sc["rate"]) for k in sc["kappas"] if k > 0}
 
-        for di, hour in enumerate(cfg["times"]):
-            key = f"{sc['name']}|{sc['rate']}|{speed:.4f}|{season:.2f}|{p_hib:.1f}|{hour:.0f}"
-            if key in done:
-                continue
-            t0 = time.time()
-            for pl in (blind, *aware.values()):
-                pl.clear()
-            d0 = blind.departure(hour)
-            dark = passable & ~d0["lit"].ravel()
-            cand = np.flatnonzero(dark & blind.accepts(d0))
-            rows = []
-            if cand.size:
-                pick = np.random.default_rng([SEED, di])
-                targets = pick.choice(cand, size=min(cfg["n_targets"], cand.size), replace=False)
-                rt0 = blind.round_trip(d0)
-                for k in sc["kappas"]:
-                    pa = aware.get(k)
-                    da = pa.departure(hour) if pa else d0
-                    acc = pa.accepts(da) if pa else np.ones(passable.size, dtype=bool)
-                    rta = pa.round_trip(da) if pa else rt0
-                    for t in targets:
-                        for run in range(cfg["n_runs"]):
-                            seed = [SEED, di, int(t), run]
-                            rb = fly(world, blind, d0, int(t), k, rng=np.random.default_rng(seed))
-                            args = (sc, speed, season, p_hib, hour, k)
-                            rows.append(row(*args, "blind", t, run, rb, acc[t], rt0[t], rta[t]))
-                            if pa is None:
-                                rows.append(row(*args, "aware", t, run, rb, True, rt0[t], rt0[t]))
-                            elif acc[t]:
-                                ra = fly(world, pa, da, int(t), k, rng=np.random.default_rng(seed))
-                                rows.append(row(*args, "aware", t, run, ra, True, rt0[t], rta[t]))
+        d0 = blind.departure(hour)
+        dark = passable & ~d0["lit"].ravel()
+        cand = np.flatnonzero(dark & blind.accepts(d0))
+        if cand.size:
+            pick = np.random.default_rng([SEED, di])
+            targets = pick.choice(cand, size=min(n_targets, cand.size), replace=False)
+            n_tg = len(targets)
+            rt0 = blind.round_trip(d0)
+            for k in sc["kappas"]:
+                pa = aware.get(k)
+                da = pa.departure(hour) if pa else d0
+                acc = pa.accepts(da) if pa else np.ones(passable.size, dtype=bool)
+                rta = pa.round_trip(da) if pa else rt0
+                for t in targets:
+                    for run in range(n_runs):
+                        seed = [SEED, di, int(t), run]
+                        rb = fly(world, blind, d0, int(t), k, rng=np.random.default_rng(seed))
+                        args = (sc, speed, season, p_hib, hour, k)
+                        rows.append(row(*args, "blind", t, run, rb, acc[t], rt0[t], rta[t]))
+                        if pa is None:
+                            rows.append(row(*args, "aware", t, run, rb, True, rt0[t], rt0[t]))
+                        elif acc[t]:
+                            ra = fly(world, pa, da, int(t), k, rng=np.random.default_rng(seed))
+                            rows.append(row(*args, "aware", t, run, ra, True, rt0[t], rta[t]))
+    label = (f"{sc['name']:<9s} {sc['rate']}  {speed * 100:5.1f} cm/s  season {season:5.2f}  "
+             f"hibernate {p_hib:4.1f} W  t = {hour:3.0f} h  targets {n_tg:3d}  sorties {len(rows):6d}")
+    return block_key(sc, hour), rows, label, time.time() - t0
+
+
+def run_all(tasks, cfg, done, workers):
+    total, t_start = len(tasks), time.time()
+    if workers > 1:
+        pool = mp.Pool(workers, initializer=init_worker)
+        results = pool.imap_unordered(run_block, tasks)
+    else:
+        pool, results = None, map(run_block, tasks)
+    try:
+        for i, (key, rows, label, secs) in enumerate(results, 1):
             if rows:
-                df = pd.DataFrame(rows)
-                df.to_csv(cfg["runs"], mode="a", header=not os.path.exists(cfg["runs"]), index=False)
+                pd.DataFrame(rows).to_csv(cfg["runs"], mode="a",
+                                          header=not os.path.exists(cfg["runs"]), index=False)
             done.add(key)
             with open(cfg["done"], "w") as f:
                 json.dump(sorted(done), f)
-            print(f"  {sc['name']:<9s} {sc['rate']}  {speed * 100:5.1f} cm/s  season {season:5.2f}  "
-                  f"hibernate {p_hib:4.1f} W  "
-                  f"t = {hour:3.0f} h  targets {min(cfg['n_targets'], cand.size):3d}  "
-                  f"sorties {len(rows):6d}  {time.time() - t0:6.1f} s", flush=True)
+            el = time.time() - t_start
+            eta = el / i * (total - i)
+            print(f"  [{i:3d}/{total}] {label}  {secs:6.1f} s   elapsed {el / 60:5.1f} min, "
+                  f"left ~{eta / 60:5.1f} min", flush=True)
+    finally:
+        if pool is not None:
+            pool.close()
+            pool.join()
 
 
 def wilson(k, n, z=1.96):
@@ -367,7 +410,10 @@ def main():
     ap.add_argument("--only", choices=("main", "speed", "season", "hibernate"),
                     help="run one scenario family")
     ap.add_argument("--summary", action="store_true", help="only summarise saved runs")
+    ap.add_argument("--workers", type=int, default=0,
+                    help="CPU cores to use (default: all but one, at most 8)")
     a = ap.parse_args()
+    workers = a.workers or max(1, min(8, (os.cpu_count() or 2) - 1))
     cfg = CONFIG["quick" if a.quick else "full"]
 
     if a.fresh:
@@ -379,20 +425,21 @@ def main():
         with open(cfg["done"]) as f:
             done = set(json.load(f))
 
-    q, _, provenance = load_q()
-    H, _, _ = load_field()
-    terr = terrain()
+    _W.update(load_inputs())
+    q, H, terr, provenance = _W["q"], _W["H"], _W["terr"], _W["provenance"]
     print(f"\nq: {provenance}   budget {budget_Wh():.0f} Wh   "
           f"{'QUICK' if a.quick else 'FULL'} run: {cfg['n_targets']} targets x {cfg['n_runs']} runs "
-          f"x {len(cfg['times'])} departures\n")
+          f"x {len(cfg['times'])} departures, {workers} CPU core(s)\n")
 
     ident = identity_check(terr, H, q, cfg)
     if not a.summary:
+        tasks = [(sc, di, float(hour), cfg["n_targets"], cfg["n_runs"])
+                 for sc in scenarios() if not a.only or sc["name"] == a.only
+                 for di, hour in enumerate(cfg["times"])
+                 if block_key(sc, float(hour)) not in done]
+        print(f"  {len(tasks)} blocks to run ({len(done)} already saved)\n")
         t0 = time.time()
-        for sc in scenarios():
-            if a.only and sc["name"] != a.only:
-                continue
-            run_scenario(sc, terr, H, q, cfg, done)
+        run_all(tasks, cfg, done, workers)
         print(f"\n  simulation time {(time.time() - t0) / 60:.1f} min\n")
 
     df = pd.read_csv(cfg["runs"], dtype={"rate": str})

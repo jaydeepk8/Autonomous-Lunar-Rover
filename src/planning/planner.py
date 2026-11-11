@@ -1,17 +1,15 @@
-# finds the charging sells (specific terrain area for charging), the cheapest route out to every cell and back to source point and decides whether to use the headlights or not
-
 import sys
 sys.path.insert(0, "src/illumination")
 sys.path.insert(0, "src/energy")
 
 from collections import OrderedDict
 import numpy as np
+from scipy import sparse
 from scipy.sparse.csgraph import dijkstra
 
 from sun_geometry import sun_position
-from irradiance import solar_power
-from loads import p as load_p, idle_load
-from edges import edge_costs, to_graph, STEPS
+from loads import p as load_p, idle_load, drive_power
+from edges import edge_costs, shift, STEPS
 from coupling import breakeven_headlight_power, PARAMS as FAULT
 from battery import p as batt_p
 
@@ -26,6 +24,7 @@ PARAMS = {
 }
 
 NO_PRED = -9999
+_GRAPHS = {}
 
 
 def p(name):
@@ -41,16 +40,40 @@ def charge_power():
     return load_p("P_avionics") + load_p("P_heater_sun")
 
 
+def graph_layout(terr):
+    """Which cells connect to which never changes, so build the network layout once."""
+    key = id(terr)
+    if key in _GRAPHS:
+        return _GRAPHS[key]
+    h, w = terr["passable"].shape
+    n = h * w
+    idx = np.arange(n).reshape(h, w)
+    masks = [s["valid"] for s in terr["steps"]]
+    rows = np.concatenate([idx[m] for m in masks])
+    cols = np.concatenate([shift(idx, dr, dc, -1)[m] for (dr, dc), m in zip(STEPS, masks)])
+    order = np.arange(1, rows.size + 1, dtype=np.float64)
+
+    def layout(r, c):
+        g = sparse.csr_matrix((order, (r, c)), shape=(n, n))
+        return g.data.astype(np.int64) - 1, g.indices, g.indptr
+
+    _GRAPHS[key] = dict(n=n, masks=masks, fwd=layout(rows, cols), bwd=layout(cols, rows))
+    return _GRAPHS[key]
+
+
 class Planner:
     """What one planner believes: costs at its own kappa, sun frozen at the hour it plans."""
 
-    def __init__(self, name, terr, H, q, kappa, rate="2023", cache_size=80):
+    def __init__(self, name, terr, H, q, kappa, rate="2023", cache_size=40):
         self.name, self.terr, self.H, self.q = name, terr, H, q
         self.kappa, self.rate = float(kappa), rate
         self.shape = terr["passable"].shape
         self.size = cache_size
         self.views = OrderedDict()
         self.departs = {}
+
+        self.layout = graph_layout(terr)
+        self.P_drive = [drive_power(s["grade"]) for s in terr["steps"]]
 
         lam0 = FAULT[f"lambda0_{rate}"]["value"]
         T_rec = FAULT[f"T_rec_{rate}"]["value"]
@@ -63,32 +86,35 @@ class Planner:
         return float(np.floor(hour / p("replan_h")) * p("replan_h"))
 
     def _build(self, hour, forward):
-        terr = self.terr
-        costs, _, lit = edge_costs(terr, self.H, hour, self.kappa, self.q, self.rate)
-        G = to_graph(costs)
-        G.data = G.data + 1e-9
+        terr, lay = self.terr, self.layout
+        costs, _, lit, P_sun = edge_costs(terr, self.H, hour, self.kappa, self.q, self.rate,
+                                          P_drive=self.P_drive, return_sun=True)
+        data = np.concatenate([costs[k][m] for k, m in enumerate(lay["masks"])]) + 1e-9
         del costs
+        n = lay["n"]
 
-        elev, azim = sun_position(hour)
-        P_sun = solar_power(self.H, terr["xs"], terr["ys"], float(elev), float(azim))
+        def graph(side):
+            perm, ind, ptr = lay[side]
+            return sparse.csr_matrix((data[perm], ind, ptr), shape=(n, n))
+
+        _, azim = sun_position(hour)
         charge = terr["passable"] & (P_sun >= charge_power())
         src = np.flatnonzero(charge)
-        n = charge.size
 
-        def tree(graph):
+        def tree(g):
             if src.size == 0:
                 return np.full(n, np.inf), np.full(n, NO_PRED, dtype=np.int32)
-            d, pr, _ = dijkstra(graph, indices=src, min_only=True, return_predecessors=True)
+            d, pr, _ = dijkstra(g, indices=src, min_only=True, return_predecessors=True)
             return d, pr.astype(np.int32)
 
         # home: cheapest energy from each cell to the nearest charging cell
-        home, home_pred = tree(G.T)
+        home, home_pred = tree(graph("bwd"))
         v = dict(hour=hour, azim=float(azim), n_charge=int(src.size))
         if not forward:
             v["home"], v["home_pred"] = home.astype(np.float32), home_pred
             return v
         v["home"], v["home_pred"] = home, home_pred
-        v["out"], v["out_pred"] = tree(G)
+        v["out"], v["out_pred"] = tree(graph("fwd"))
         v["lit"], v["charge"], v["P_sun"] = lit, charge, P_sun
         return v
 
